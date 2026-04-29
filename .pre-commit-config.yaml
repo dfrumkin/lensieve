@@ -1,0 +1,15 @@
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.15.12  # pre-commit autoupdate
+    hooks:
+      - id: ruff-check
+        args: [--fix]
+        files: .
+
+      - id: ruff-format
+        files: .
+  - repo: https://github.com/kynan/nbstripout
+    rev: 0.6.1
+    hooks:
+      - id: nbstripout
+
