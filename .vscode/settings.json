@@ -17,5 +17,6 @@
       "source.fixAll.ruff": "explicit",        // only on manual save
       "source.organizeImports.ruff": "explicit"
     }
-  }
+  },
+  "python-envs.pythonProjects": []
 }

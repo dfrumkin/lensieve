@@ -1,0 +1,261 @@
+import hashlib
+import logging
+from concurrent.futures import ProcessPoolExecutor
+from pathlib import Path
+from typing import Any, NamedTuple
+
+import exifread
+import pyarrow as pa
+import rawpy
+from PIL import Image
+from tqdm import tqdm
+
+from lensieve.consts import IMAGE_EXTENSIONS, RAW_EXTENSIONS, RAW_FORMAT_MAP, AppPaths
+from lensieve.consts import ImageField as IF
+from lensieve.consts import TableName as TN
+from lensieve.ingestion.utils import delete_rows, insert_rows, open_or_create_table
+from lensieve.resources import Resources, duck_table
+
+try:
+    from pillow_heif import register_heif_opener
+
+    register_heif_opener()
+except ImportError:
+    pass
+
+
+logger = logging.getLogger(__name__)
+
+
+class FileStat(NamedTuple):
+    size: int
+    mtime_ns: int
+
+
+class FileFormat(NamedTuple):
+    width: int
+    height: int
+    image_format: str | None
+
+
+SCHEMA = pa.schema(
+    [
+        pa.field(IF.PATH, pa.string(), nullable=False),
+        pa.field(IF.SHA256, pa.string()),
+        pa.field(IF.FILE_SIZE_BYTES, pa.int64(), nullable=False),
+        pa.field(IF.FILE_MTIME_NS, pa.int64(), nullable=False),
+        pa.field(IF.WIDTH, pa.int64()),
+        pa.field(IF.HEIGHT, pa.int64()),
+        pa.field(IF.IMAGE_FORMAT, pa.string()),
+        pa.field(IF.DATE_TAKEN, pa.string()),
+        pa.field(IF.CAMERA_MAKE, pa.string()),
+        pa.field(IF.CAMERA_MODEL, pa.string()),
+        pa.field(IF.ORIENTATION, pa.string()),
+        pa.field(IF.STRUCTURE_ERROR, pa.bool_(), nullable=False),
+        pa.field(IF.EXIF_ERROR, pa.bool_(), nullable=False),
+    ]
+)
+
+
+def sha256_file(path: Path, chunk_size: int = 1024 * 1024) -> str | None:
+    h = hashlib.sha256()
+    try:
+        with path.open("rb") as f:
+            while chunk := f.read(chunk_size):
+                h.update(chunk)
+        sha = h.hexdigest()
+    except OSError as e:
+        logger.error("Error hashing file %s: %s", path, e)
+        sha = None
+    return sha
+
+
+def normalize_exif_value(value: Any) -> str | None:
+    return None if value is None else (str(value).strip() or None)
+
+
+def extract_pillow_structure(path: Path) -> FileFormat:
+    with Image.open(path) as img:
+        return FileFormat(width=img.width, height=img.height, image_format=img.format)
+
+
+def extract_raw_structure(path: Path) -> FileFormat:
+    with rawpy.imread(path) as raw:
+        return FileFormat(
+            width=raw.sizes.width,
+            height=raw.sizes.height,
+            image_format=RAW_FORMAT_MAP.get(path.suffix.lower()),
+        )
+
+
+def extract_image_structure(path: Path) -> dict[str, Any]:
+    result: dict[str, Any] = {
+        IF.WIDTH: None,
+        IF.HEIGHT: None,
+        IF.IMAGE_FORMAT: None,
+        IF.STRUCTURE_ERROR: False,
+    }
+
+    extract = extract_raw_structure if path.suffix.lower() in RAW_EXTENSIONS else extract_pillow_structure
+    try:
+        file_format = extract(path)
+        result[IF.WIDTH] = file_format.width
+        result[IF.HEIGHT] = file_format.height
+        result[IF.IMAGE_FORMAT] = file_format.image_format
+    except Exception as e:
+        logger.error("Error extracting structure from %s: %s", path, e)
+        result[IF.STRUCTURE_ERROR] = True
+
+    return result
+
+
+def extract_exif_metadata(path: Path) -> dict[str, Any]:
+    result: dict[str, Any] = {
+        IF.DATE_TAKEN: None,
+        IF.CAMERA_MAKE: None,
+        IF.CAMERA_MODEL: None,
+        IF.ORIENTATION: None,
+        IF.EXIF_ERROR: False,
+    }
+
+    try:
+        with path.open("rb") as f:
+            tags = exifread.process_file(
+                f,
+                details=False,
+                strict=False,
+            )
+
+        result[IF.DATE_TAKEN] = normalize_exif_value(
+            tags.get("EXIF DateTimeOriginal") or tags.get("EXIF DateTimeDigitized") or tags.get("Image DateTime")
+        )
+
+        result[IF.CAMERA_MAKE] = normalize_exif_value(tags.get("Image Make"))
+        result[IF.CAMERA_MODEL] = normalize_exif_value(tags.get("Image Model"))
+        result[IF.ORIENTATION] = normalize_exif_value(tags.get("Image Orientation"))
+    except Exception as e:
+        logger.error("Error extracting exif data from %s: %s", path, e)
+        result[IF.EXIF_ERROR] = True
+
+    return result
+
+
+def list_image_paths(resources: Resources) -> list[Path]:
+    paths = []
+
+    for dirpath, dirnames, filenames in resources.root.walk():
+        # prevent descending into the .lensieve directory
+        dirnames[:] = [d for d in dirnames if d != AppPaths.LENSIEVE_DIR]
+
+        for name in filenames:
+            p = dirpath / name
+            if p.suffix.lower() in IMAGE_EXTENSIONS:
+                paths.append(p)
+
+    return sorted(paths)
+
+
+def make_image_row(root: Path, rel_path: str, stat: FileStat) -> dict[str, Any]:
+    path = root / rel_path
+    return {
+        IF.PATH: rel_path,
+        IF.SHA256: sha256_file(path),
+        IF.FILE_SIZE_BYTES: stat.size,
+        IF.FILE_MTIME_NS: stat.mtime_ns,
+        **extract_image_structure(path),
+        **extract_exif_metadata(path),
+    }
+
+
+def summarize(resources: Resources) -> None:
+    row = resources.duckdb.execute(
+        f"""
+        SELECT
+            COUNT(*) AS total,
+            COUNT(*) FILTER (WHERE {IF.STRUCTURE_ERROR}) AS structure_errors,
+            COUNT(*) FILTER (WHERE {IF.EXIF_ERROR}) AS exif_errors,
+            COUNT(*) FILTER (WHERE {IF.SHA256} IS NULL) AS hash_errors,
+            COUNT(DISTINCT {IF.SHA256}) FILTER (WHERE {IF.SHA256} IS NOT NULL) AS unique_hashes
+        FROM {duck_table(TN.IMAGES)}
+        """
+    ).fetchone()
+
+    assert row is not None
+    total, structure_errors, exif_errors, hash_errors, unique_hashes = row
+
+    logger.info("Total images indexed: %s", total)
+    logger.info("Total unique hashes: %s", unique_hashes)
+
+    if hash_errors:
+        logger.warning("Images with hash errors: %s", hash_errors)
+    if structure_errors:
+        logger.warning("Images with structure errors: %s", structure_errors)
+    if exif_errors:
+        logger.warning("Images with EXIF errors: %s", exif_errors)
+
+
+def make_image_row_worker(args):
+    root, rel, stat = args
+    return make_image_row(root, rel, stat)
+
+
+def sync_images_table(resources: Resources) -> None:
+    # Current filesystem snapshot
+    paths = list_image_paths(resources)
+    current: dict[str, FileStat] = {}
+    for p in paths:
+        stat = p.stat()
+        rel = p.relative_to(resources.root).as_posix()
+        current[rel] = FileStat(stat.st_size, stat.st_mtime_ns)
+
+    # Existing table snapshot
+    table = open_or_create_table(resources.lancedb, TN.IMAGES, SCHEMA, logger)
+    existing_rows = {
+        row[IF.PATH]: row for row in table.search().select([IF.PATH, IF.FILE_SIZE_BYTES, IF.FILE_MTIME_NS]).to_list()
+    }
+
+    # Deletions (missing + changed)
+    to_delete: list[str] = []
+    for rel, row in existing_rows.items():
+        if rel in current:
+            stat = current[rel]
+            if row[IF.FILE_SIZE_BYTES] != stat.size or row[IF.FILE_MTIME_NS] != stat.mtime_ns:
+                to_delete.append(rel)  # changed file (size or mtime mismatch)
+            else:
+                current.pop(rel)  # unchanged file, remove from current to skip re-insertion
+        else:
+            to_delete.append(rel)  # missing file
+
+    delete_rows(table, IF.PATH, to_delete, logger)
+
+    # Insertions (new + changed)
+    items = [(resources.root, rel, stat) for rel, stat in current.items()]
+
+    # There are exif parsing errors with multithreading => multiprocessing instead.
+    with ProcessPoolExecutor(max_workers=4) as ex:
+        to_insert = list(
+            tqdm(
+                ex.map(make_image_row_worker, items, chunksize=32),
+                total=len(items),
+                desc="Processing images",
+                unit="img",
+            )
+        )
+
+    insert_rows(table, to_insert, logger)
+
+    # Summarize final state
+    summarize(resources)
+
+
+if __name__ == "__main__":
+    from lensieve.logging_config import setup_logging
+    from lensieve.resources import create_resources
+
+    project_root = Path(__file__).resolve().parents[3]  # src/lensieve/ingestion/...
+    data_root = project_root / "data" / "large_samsung"
+
+    setup_logging(data_root, verbose=False)
+    resources = create_resources(data_root)
+
+    sync_images_table(resources)
