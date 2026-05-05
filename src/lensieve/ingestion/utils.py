@@ -11,7 +11,7 @@ def open_or_create_table(
     schema: pa.Schema,
     logger: Logger,
 ) -> lancedb.table.Table:
-    existing_tables = set(db.table_names())
+    existing_tables = set(db.list_tables().tables)
 
     if table_name in existing_tables:
         logger.info("Existing %s table found; opening", table_name)
@@ -51,4 +51,4 @@ def insert_rows(table: lancedb.Table, rows: list[dict], logger: Logger, batch_si
         return
     logger.info("Inserting %s new/updated rows into %s table", len(rows), table.name)
     for batch in batched(rows, batch_size, strict=False):
-        table.add(batch)
+        table.add(pa.Table.from_pylist(batch))

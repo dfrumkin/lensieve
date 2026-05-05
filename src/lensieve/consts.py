@@ -25,7 +25,7 @@ def lancedb_path(root: Path) -> Path:
 class TableName:
     IMAGES = "images"
     CLIP_LIKE_EMBEDDINGS = "clip_like_embeddings"
-    IMAGE_EMBEDDINGS = "image_embeddings"
+    VISION_EMBEDDINGS = "vision_embeddings"
     FACE_CROPS = "face_crops"
 
 
@@ -55,17 +55,22 @@ class ImageField(BaseField):
 
 
 @dataclass(frozen=True)
-class EmbeddingField(BaseField):
+class DerivedField(BaseField):
+    MODEL_NAME = "model_name"
+
+
+@dataclass(frozen=True)
+class EmbeddingField(DerivedField):
     VECTOR = "vector"
 
 
 @dataclass(frozen=True)
-class AestheticField(BaseField):
+class AestheticField(DerivedField):
     SCORE = "score"
 
 
 @dataclass(frozen=True)
-class FaceDetectionField(BaseField):
+class FaceDetectionField(DerivedField):
     X1 = "x1"
     Y1 = "y1"
     X2 = "x2"

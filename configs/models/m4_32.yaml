@@ -1,0 +1,15 @@
+clip_like:
+  # name: google/siglip2-base-patch16-384
+  # batch_size: 64
+  # embedding_dim: 768
+  name: google/siglip2-large-patch16-384
+  batch_size: 24
+  embedding_dim: 1024
+
+vision:
+  # name: facebook/dinov2-with-registers-base
+  # batch_size: 96
+  # embedding_dim: 768
+  name: facebook/dinov2-with-registers-large
+  batch_size: 40
+  embedding_dim: 1024

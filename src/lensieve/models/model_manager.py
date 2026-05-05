@@ -38,10 +38,10 @@ class ModelManager:
 
         self.unload()
 
-        self.processor = AutoProcessor.from_pretrained(model_name)
+        self.processor = AutoProcessor.from_pretrained(model_name, local_files_only=True)
         self.model = AutoModel.from_pretrained(
             model_name,
-            torch_dtype=torch.float16 if self.device in {"cuda", "mps"} else torch.float32,
+            dtype=torch.float16 if self.device in {"cuda", "mps"} else torch.float32,
         )
         self.model.eval()
         self.model.to(self.device)

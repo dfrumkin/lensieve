@@ -14,7 +14,7 @@ from lensieve.consts import IMAGE_EXTENSIONS, RAW_EXTENSIONS, RAW_FORMAT_MAP, Ap
 from lensieve.consts import ImageField as IF
 from lensieve.consts import TableName as TN
 from lensieve.ingestion.utils import delete_rows, insert_rows, open_or_create_table
-from lensieve.resources import Resources, duck_table
+from lensieve.resources import Resources, duck_table_name
 
 try:
     from pillow_heif import register_heif_opener
@@ -176,7 +176,7 @@ def summarize(resources: Resources) -> None:
             COUNT(*) FILTER (WHERE {IF.EXIF_ERROR}) AS exif_errors,
             COUNT(*) FILTER (WHERE {IF.SHA256} IS NULL) AS hash_errors,
             COUNT(DISTINCT {IF.SHA256}) FILTER (WHERE {IF.SHA256} IS NOT NULL) AS unique_hashes
-        FROM {duck_table(TN.IMAGES)}
+        FROM {duck_table_name(TN.IMAGES)}
         """
     ).fetchone()
 
@@ -199,7 +199,7 @@ def make_image_row_worker(args):
     return make_image_row(root, rel, stat)
 
 
-def sync_images_table(resources: Resources) -> None:
+def sync_images_table(resources: Resources, insert_batch_size=10_000, delete_batch_size=1_000) -> None:
     # Current filesystem snapshot
     paths = list_image_paths(resources)
     current: dict[str, FileStat] = {}
@@ -226,7 +226,7 @@ def sync_images_table(resources: Resources) -> None:
         else:
             to_delete.append(rel)  # missing file
 
-    delete_rows(table, IF.PATH, to_delete, logger)
+    delete_rows(table, IF.PATH, to_delete, logger, delete_batch_size)
 
     # Insertions (new + changed)
     items = [(resources.root, rel, stat) for rel, stat in current.items()]
@@ -242,7 +242,7 @@ def sync_images_table(resources: Resources) -> None:
             )
         )
 
-    insert_rows(table, to_insert, logger)
+    insert_rows(table, to_insert, logger, insert_batch_size)
 
     # Summarize final state
     summarize(resources)
@@ -252,8 +252,7 @@ if __name__ == "__main__":
     from lensieve.logging_config import setup_logging
     from lensieve.resources import create_resources
 
-    project_root = Path(__file__).resolve().parents[3]  # src/lensieve/ingestion/...
-    data_root = project_root / "data" / "large_samsung"
+    data_root = Path(__file__).resolve().parents[3] / "data" / "small_samsung"
 
     setup_logging(data_root, verbose=False)
     resources = create_resources(data_root)

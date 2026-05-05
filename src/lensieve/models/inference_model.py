@@ -3,15 +3,16 @@ from typing import Any
 
 import torch
 
+from lensieve.models.model_manager import ModelManager
+
 
 class InferenceModel(ABC):
-    def __init__(self, manager, model_name: str):
+    def __init__(self, manager: ModelManager, model_name: str):
         self.manager = manager
         self.model_name = model_name
 
     def run(self, **kwargs):
         model, processor = self.manager.load(self.model_name)
-
         params, inputs = self.preprocess(processor, **kwargs)
         inputs = self.manager.move_to_device(inputs)
 

@@ -42,5 +42,5 @@ def create_resources(root_dir: str | Path) -> Resources:
     )
 
 
-def duck_table(table_name: str) -> str:
-    return f"{DUCKDB_CATALOG}.{DUCKDB_SCHEMA}.{table_name}"
+def duck_table_name(lance_table_name: str) -> str:
+    return f"{DUCKDB_CATALOG}.{DUCKDB_SCHEMA}.{lance_table_name}"

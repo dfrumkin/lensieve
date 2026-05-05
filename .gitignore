@@ -1,3 +1,9 @@
+# Temporary
+*.swp
+
+# Hydra
+outputs/
+
 # MacOS data
 .DS_Store
 
