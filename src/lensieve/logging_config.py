@@ -18,9 +18,10 @@ def setup_logging(root: Path, verbose: bool = False) -> None:
     # avoid duplicate handlers if called twice
     logger.handlers.clear()
 
-    logger.addHandler(logging.StreamHandler())
-    logger.addHandler(logging.FileHandler(log_dir / "lensieve.log"))
+    stream_handler = logging.StreamHandler()
+    file_handler = logging.FileHandler(log_dir / "lensieve.log", encoding="utf-8")
 
-    for h in logger.handlers:
+    for h in (stream_handler, file_handler):
         h.setLevel(level)
         h.setFormatter(logging.Formatter(fmt))
+        logger.addHandler(h)
