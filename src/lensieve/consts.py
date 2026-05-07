@@ -1,3 +1,4 @@
+import re
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -21,12 +22,21 @@ def lancedb_path(root: Path) -> Path:
     return root / AppPaths.LENSIEVE_DIR / AppPaths.LANCEDB_DIR
 
 
+def normalize(name: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "_", name.lower()).strip("_")
+
+
 @dataclass(frozen=True)
 class TableName:
     IMAGES = "images"
-    CLIP_LIKE_EMBEDDINGS = "clip_like_embeddings"
-    VISION_EMBEDDINGS = "vision_embeddings"
-    FACE_CROPS = "face_crops"
+
+    @staticmethod
+    def clip_like_embeddings(model_name: str) -> str:
+        return f"embeddings__clip_like__{normalize(model_name)}"
+
+    @staticmethod
+    def vision_embeddings(model_name: str) -> str:
+        return f"embeddings__vision__{normalize(model_name)}"
 
 
 @dataclass(frozen=True)
@@ -55,22 +65,17 @@ class ImageField(BaseField):
 
 
 @dataclass(frozen=True)
-class DerivedField(BaseField):
-    MODEL_NAME = "model_name"
-
-
-@dataclass(frozen=True)
-class EmbeddingField(DerivedField):
+class EmbeddingField(BaseField):
     VECTOR = "vector"
 
 
 @dataclass(frozen=True)
-class AestheticField(DerivedField):
+class AestheticField(BaseField):
     SCORE = "score"
 
 
 @dataclass(frozen=True)
-class FaceDetectionField(DerivedField):
+class FaceDetectionField(BaseField):
     X1 = "x1"
     Y1 = "y1"
     X2 = "x2"

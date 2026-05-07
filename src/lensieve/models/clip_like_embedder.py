@@ -16,7 +16,7 @@ class ClipLikeEmbedder(Embedder):
 
         if images is not None:
             return EmbedMode.IMAGE, processor(images=images, return_tensors="pt", padding=True)
-        return EmbedMode.TEXT, processor(text=texts, return_tensors="pt", padding=True)
+        return EmbedMode.TEXT, processor(text=texts, return_tensors="pt", padding="max_length", truncation=True)
 
     def call_model(self, model: Any, mode: EmbedMode, inputs: dict[str, Any]) -> Any:
         output = model.get_image_features(**inputs) if mode is EmbedMode.IMAGE else model.get_text_features(**inputs)

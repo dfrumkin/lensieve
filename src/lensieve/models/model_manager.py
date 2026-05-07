@@ -16,7 +16,7 @@ class ModelManager:
 
     def unload(self):
         if self.model is not None:
-            self.model.to("cpu")
+            # Note: self.model.to("cpu") is not needed (and never really was).
             del self.model
             self.model = None
 
@@ -39,9 +39,11 @@ class ModelManager:
         self.unload()
 
         self.processor = AutoProcessor.from_pretrained(model_name, local_files_only=True)
+        # Note: torch_dtype is deprecated in favor of dtype.
         self.model = AutoModel.from_pretrained(
             model_name,
             dtype=torch.float16 if self.device in {"cuda", "mps"} else torch.float32,
+            local_files_only=True,
         )
         self.model.eval()
         self.model.to(self.device)

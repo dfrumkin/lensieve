@@ -1,8 +1,5 @@
-# Temporary
+# Swap files
 *.swp
-
-# Hydra
-outputs/
 
 # MacOS data
 .DS_Store

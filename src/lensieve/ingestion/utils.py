@@ -11,7 +11,7 @@ def open_or_create_table(
     schema: pa.Schema,
     logger: Logger,
 ) -> lancedb.table.Table:
-    existing_tables = set(db.list_tables().tables)
+    existing_tables = set(db.table_names())
 
     if table_name in existing_tables:
         logger.info("Existing %s table found; opening", table_name)

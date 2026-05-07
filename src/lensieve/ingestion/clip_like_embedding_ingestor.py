@@ -20,7 +20,7 @@ class ClipLikeEmbeddingIngestor(EmbeddingIngestor):
     ) -> None:
         super().__init__(
             resources=resources,
-            table_name=TN.CLIP_LIKE_EMBEDDINGS,
+            table_name=TN.clip_like_embeddings(model.model_name),
             model=model,
             workload_batch_size=workload_batch_size,
             logger=logger,

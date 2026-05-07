@@ -1,15 +1,16 @@
 from abc import ABC, abstractmethod
+from concurrent.futures import ThreadPoolExecutor
 from itertools import batched
 from logging import Logger
 from pathlib import Path
 
 import pyarrow as pa
 import rawpy
-from PIL import Image
+from PIL import Image, ImageOps
 from tqdm import tqdm
 
 from lensieve.consts import RAW_EXTENSIONS
-from lensieve.consts import DerivedField as DF
+from lensieve.consts import BaseField as BF
 from lensieve.consts import ImageField as IF
 from lensieve.consts import TableName as TN
 from lensieve.ingestion.utils import delete_rows, insert_rows, open_or_create_table, sql_ident
@@ -49,7 +50,6 @@ class DerivedTableIngestor[T: InferenceModel](ABC):
 
         self.t_name = duck_table_name(self.table_name)
         self.i_name = duck_table_name(TN.IMAGES)
-        self.sha_col = sql_ident(DF.SHA256)
 
     def run(self) -> None:
         table = open_or_create_table(self.resources.lancedb, self.table_name, self.schema(), self.logger)
@@ -80,38 +80,39 @@ class DerivedTableIngestor[T: InferenceModel](ABC):
             insert_rows(table, output_rows, self.logger)
 
         self.logger.info(
-            "Finished %s: processed %s images, inserted %s rows",
+            "Finished populating %s: processed %s images, inserted %s rows",
             self.table_name,
             num_images,
             num_rows,
         )
 
     def _delete_orphan_rows(self, table) -> None:
+        sha_col = sql_ident(BF.SHA256)
 
         rows = self.resources.duckdb.execute(
             f"""
-            SELECT t.{self.sha_col}
+            SELECT t.{sha_col}
             FROM {self.t_name} AS t
             ANTI JOIN {self.i_name} AS i
-            ON t.{self.sha_col} = i.{self.sha_col}
+            ON t.{sha_col} = i.{sha_col}
             """
         ).fetchall()
 
-        delete_rows(table, self.sha_col, [row[0] for row in rows], self.logger, self.delete_batch_size)
+        delete_rows(table, BF.SHA256, [row[0] for row in rows], self.logger, self.delete_batch_size)
 
     def _find_new_image_pairs(self) -> list[tuple[str, Path]]:
+        sha_col = sql_ident(BF.SHA256)
         path_col = sql_ident(IF.PATH)
-        model_name_col = sql_ident(DF.MODEL_NAME)
 
+        # We want to process new distinct images.
         rows = self.resources.duckdb.execute(
             f"""
-            SELECT i.{self.sha_col}, i.{path_col}
+            SELECT DISTINCT ON (i.{sha_col}) i.{sha_col}, i.{path_col}
             FROM {self.i_name} AS i
             ANTI JOIN {self.t_name} AS t
-            ON i.{self.sha_col} = t.{self.sha_col}
-            AND t.{model_name_col} = ?
-            """,
-            [self.model.model_name],
+            ON i.{sha_col} = t.{sha_col}
+            ORDER BY i.{sha_col}, i.{path_col}
+            """
         ).fetchall()
 
         return [(sha256, self.resources.root / path) for sha256, path in rows]
@@ -120,7 +121,8 @@ class DerivedTableIngestor[T: InferenceModel](ABC):
         loaded = self._load_images(pairs)
         return self.process_images(loaded)
 
-    def _load_image(self, path: Path) -> Image.Image:
+    @staticmethod
+    def _load_image(path: Path) -> Image.Image:
         ext = path.suffix.lower()
 
         if ext in RAW_EXTENSIONS:
@@ -129,16 +131,20 @@ class DerivedTableIngestor[T: InferenceModel](ABC):
             image = Image.fromarray(rgb)
         else:
             with Image.open(path) as img:
-                image = img.convert("RGB")
+                # We do this ourselves so as not to rely on HF or downstream models.
+                image = ImageOps.exif_transpose(img)
+                image = image.convert("RGB")
 
         return image
 
     def _load_images(self, pairs: list[ImagePair]) -> list[LoadedImagePair]:
-        loaded = []
-
-        for sha256, path in pairs:
+        def load_one(pair: ImagePair) -> LoadedImagePair:
+            sha256, path = pair
             image = self._load_image(path)
-            loaded.append((sha256, path, image))
+            return sha256, path, image
+
+        with ThreadPoolExecutor(max_workers=4) as ex:
+            loaded = list(ex.map(load_one, pairs))
 
         return loaded
 

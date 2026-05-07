@@ -20,7 +20,7 @@ class VisionEmbeddingIngestor(EmbeddingIngestor):
     ) -> None:
         super().__init__(
             resources=resources,
-            table_name=TN.VISION_EMBEDDINGS,
+            table_name=TN.vision_embeddings(model.model_name),
             model=model,
             workload_batch_size=workload_batch_size,
             logger=logger,

@@ -1,3 +1,10 @@
 defaults:
-  - models: m4_32
+  - models: m4_32_base
   - _self_
+
+hydra:
+  run:
+    dir: .
+  output_subdir: null
+  job_logging: {}
+  hydra_logging: {}
