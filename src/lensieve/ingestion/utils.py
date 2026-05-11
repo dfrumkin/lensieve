@@ -4,6 +4,8 @@ from logging import Logger
 import lancedb
 import pyarrow as pa
 
+from lensieve.resources import sql_ident, sql_quote
+
 
 def open_or_create_table(
     db: lancedb.DBConnection,
@@ -26,14 +28,6 @@ def open_or_create_table(
 
     logger.info("No existing %s table found; creating new one", table_name)
     return db.create_table(table_name, schema=schema)
-
-
-def sql_quote(s: str) -> str:
-    return "'" + s.replace("'", "''") + "'"
-
-
-def sql_ident(s: str) -> str:
-    return '"' + s.replace('"', '""') + '"'
 
 
 def delete_rows(table: lancedb.Table, col: str, vals: list[str], logger: Logger, batch_size: int = 1_000) -> None:

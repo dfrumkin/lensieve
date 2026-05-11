@@ -38,14 +38,14 @@ if __name__ == "__main__":
     from lensieve.logging_config import setup_logging
     from lensieve.models.clip_like_embedder import ClipLikeEmbedder
     from lensieve.models.model_manager import ModelManager
-    from lensieve.resources import create_resources
+    from lensieve.resources import Resources
 
     @hydra.main(version_base=None, config_path="../../../configs", config_name="config")
     def main(cfg: DictConfig) -> None:
-        data_root = Path(__file__).resolve().parents[3] / "data" / "small_samsung"
+        data_root = Path(__file__).resolve().parents[3] / "data" / "large_samsung"
 
         setup_logging(data_root, verbose=False)
-        resources = create_resources(data_root)
+        resources = Resources(data_root)
 
         model_name = cfg.models.clip_like.name
         batch_size = cfg.models.clip_like.batch_size

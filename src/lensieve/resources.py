@@ -1,4 +1,3 @@
-from dataclasses import dataclass
 from pathlib import Path
 
 import duckdb
@@ -10,37 +9,31 @@ DUCKDB_CATALOG = "lensieve"
 DUCKDB_SCHEMA = "main"
 
 
-@dataclass
-class Resources:
-    root: Path
-    lancedb: lancedb.DBConnection
-    duckdb: duckdb.DuckDBPyConnection
+def sql_quote(s: str) -> str:
+    return "'" + s.replace("'", "''") + "'"
 
 
-def connect_lancedb(db_path: Path):
-    db_path.mkdir(parents=True, exist_ok=True)
-    return lancedb.connect(str(db_path))
-
-
-def connect_duckdb_for_lance(db_path: Path) -> duckdb.DuckDBPyConnection:
-    con = duckdb.connect(database=":memory:")
-    # TODO: Do we want to limit memory usage?
-    con.execute("INSTALL lance")
-    con.execute("LOAD lance")
-    con.execute(f"ATTACH '{db_path.as_posix()}' AS {DUCKDB_CATALOG} (TYPE LANCE)")
-    return con
-
-
-def create_resources(root_dir: str | Path) -> Resources:
-    root = Path(root_dir).expanduser().resolve()
-    db_path = lancedb_path(root)
-
-    return Resources(
-        root=root,
-        lancedb=connect_lancedb(db_path),
-        duckdb=connect_duckdb_for_lance(db_path),
-    )
+def sql_ident(s: str) -> str:
+    return '"' + s.replace('"', '""') + '"'
 
 
 def duck_table_name(lance_table_name: str) -> str:
-    return f"{DUCKDB_CATALOG}.{DUCKDB_SCHEMA}.{lance_table_name}"
+    return f"{sql_ident(DUCKDB_CATALOG)}.{sql_ident(DUCKDB_SCHEMA)}.{sql_ident(lance_table_name)}"
+
+
+class Resources:
+    def __init__(self, root_dir: str | Path) -> None:
+        self.root = Path(root_dir).expanduser().resolve()
+
+        self.db_path = lancedb_path(self.root)
+        self.db_path.mkdir(parents=True, exist_ok=True)
+        self.lancedb = lancedb.connect(self.db_path)
+
+        with duckdb.connect(database=":memory:") as con:
+            con.execute("INSTALL lance")
+
+    def connect_duckdb_for_lance(self) -> duckdb.DuckDBPyConnection:
+        con = duckdb.connect(database=":memory:")
+        con.execute("LOAD lance")
+        con.execute(f"ATTACH {sql_quote(self.db_path.as_posix())} AS {DUCKDB_CATALOG} (TYPE LANCE)")
+        return con

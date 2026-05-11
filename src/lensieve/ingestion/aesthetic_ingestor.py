@@ -3,26 +3,26 @@ import logging
 import pyarrow as pa
 
 from lensieve.consts import AestheticField as AF
-from lensieve.ingestion.derived_table_ingestor import DerivedTableIngestor, LoadedImagePair
+from lensieve.ingestion.derived_table_ingestor import DerivedTableIngestor, LoadedBatch
 
 logger = logging.getLogger(__name__)
 
 
 class AestheticIngestor(DerivedTableIngestor):
     # TODO Do we want a table per model?
-    def process_images(self, pairs: list[LoadedImagePair]) -> list[dict]:
-        images = [image for _, _, image in pairs]
+    def process_images(self, batch: LoadedBatch) -> list[dict]:
+        images = [image_data.image for image_data in batch]
         scores = self.model.run(images=images)
         # TODO: We'll need an extra head on top of CLIP, perhaps multiple scores.
         return [
             {
-                AF.SHA256: sha256,
+                AF.SHA256: image_data.sha256,
                 AF.SCORE: float(score),
             }
-            for (sha256, _, _), score in zip(pairs, scores, strict=True)
+            for image_data, score in zip(batch, scores, strict=True)
         ]
 
-    def schema(self) -> pa.lib.Schema:
+    def schema(self) -> pa.Schema:
         return pa.schema(
             [
                 pa.field(AF.SHA256, pa.string()),

@@ -1,8 +1,9 @@
 import hashlib
 import logging
 from concurrent.futures import ProcessPoolExecutor
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, NamedTuple
+from typing import Any
 
 import exifread
 import pyarrow as pa
@@ -14,7 +15,7 @@ from lensieve.consts import IMAGE_EXTENSIONS, RAW_EXTENSIONS, RAW_FORMAT_MAP, Ap
 from lensieve.consts import ImageField as IF
 from lensieve.consts import TableName as TN
 from lensieve.ingestion.utils import delete_rows, insert_rows, open_or_create_table
-from lensieve.resources import Resources, duck_table_name
+from lensieve.resources import Resources, duck_table_name, sql_ident
 
 try:
     from pillow_heif import register_heif_opener
@@ -27,12 +28,14 @@ except ImportError:
 logger = logging.getLogger(__name__)
 
 
-class FileStat(NamedTuple):
+@dataclass(frozen=True, slots=True)
+class _FileStat:
     size: int
     mtime_ns: int
 
 
-class FileFormat(NamedTuple):
+@dataclass(frozen=True, slots=True)
+class _FileFormat:
     width: int
     height: int
     image_format: str | None
@@ -74,14 +77,14 @@ def normalize_exif_value(value: Any) -> str | None:
     return None if value is None else (str(value).strip() or None)
 
 
-def extract_pillow_structure(path: Path) -> FileFormat:
+def extract_pillow_structure(path: Path) -> _FileFormat:
     with Image.open(path) as img:
-        return FileFormat(width=img.width, height=img.height, image_format=img.format)
+        return _FileFormat(width=img.width, height=img.height, image_format=img.format)
 
 
-def extract_raw_structure(path: Path) -> FileFormat:
+def extract_raw_structure(path: Path) -> _FileFormat:
     with rawpy.imread(path) as raw:
-        return FileFormat(
+        return _FileFormat(
             width=raw.sizes.width,
             height=raw.sizes.height,
             image_format=RAW_FORMAT_MAP.get(path.suffix.lower()),
@@ -155,7 +158,7 @@ def list_image_paths(resources: Resources) -> list[Path]:
     return sorted(paths)
 
 
-def make_image_row(root: Path, rel_path: str, stat: FileStat) -> dict[str, Any]:
+def make_image_row(root: Path, rel_path: str, stat: _FileStat) -> dict[str, Any]:
     path = root / rel_path
     return {
         IF.PATH: rel_path,
@@ -168,17 +171,21 @@ def make_image_row(root: Path, rel_path: str, stat: FileStat) -> dict[str, Any]:
 
 
 def summarize(resources: Resources) -> None:
-    row = resources.duckdb.execute(
-        f"""
-        SELECT
-            COUNT(*) AS total,
-            COUNT(*) FILTER (WHERE {IF.STRUCTURE_ERROR}) AS structure_errors,
-            COUNT(*) FILTER (WHERE {IF.EXIF_ERROR}) AS exif_errors,
-            COUNT(*) FILTER (WHERE {IF.SHA256} IS NULL) AS hash_errors,
-            COUNT(DISTINCT {IF.SHA256}) FILTER (WHERE {IF.SHA256} IS NOT NULL) AS unique_hashes
-        FROM {duck_table_name(TN.IMAGES)}
-        """
-    ).fetchone()
+    str_error_col = sql_ident(IF.STRUCTURE_ERROR)
+    exif_error_col = sql_ident(IF.EXIF_ERROR)
+    hash_col = sql_ident(IF.SHA256)
+    with resources.connect_duckdb_for_lance() as con:
+        row = con.execute(
+            f"""
+            SELECT
+                COUNT(*) AS total,
+                COUNT(*) FILTER (WHERE {str_error_col}) AS structure_errors,
+                COUNT(*) FILTER (WHERE {exif_error_col}) AS exif_errors,
+                COUNT(*) FILTER (WHERE {hash_col} IS NULL) AS hash_errors,
+                COUNT(DISTINCT {hash_col}) FILTER (WHERE {hash_col} IS NOT NULL) AS unique_hashes
+            FROM {duck_table_name(TN.IMAGES)}
+            """
+        ).fetchone()
 
     assert row is not None
     total, structure_errors, exif_errors, hash_errors, unique_hashes = row
@@ -199,14 +206,20 @@ def make_image_row_worker(args):
     return make_image_row(root, rel, stat)
 
 
-def sync_images_table(resources: Resources, insert_batch_size=10_000, delete_batch_size=1_000) -> None:
+def sync_images_table(
+    resources: Resources,
+    insert_batch_size: int = 10_000,
+    delete_batch_size: int = 1_000,
+    max_workers: int = 4,
+    chunk_size: int = 32,
+) -> None:
     # Current filesystem snapshot
     paths = list_image_paths(resources)
-    current: dict[str, FileStat] = {}
+    current: dict[str, _FileStat] = {}
     for p in paths:
         stat = p.stat()
         rel = p.relative_to(resources.root).as_posix()
-        current[rel] = FileStat(stat.st_size, stat.st_mtime_ns)
+        current[rel] = _FileStat(size=stat.st_size, mtime_ns=stat.st_mtime_ns)
 
     # Existing table snapshot
     table = open_or_create_table(resources.lancedb, TN.IMAGES, SCHEMA, logger)
@@ -232,10 +245,10 @@ def sync_images_table(resources: Resources, insert_batch_size=10_000, delete_bat
     items = [(resources.root, rel, stat) for rel, stat in current.items()]
 
     # There are exif parsing errors with multithreading => multiprocessing instead.
-    with ProcessPoolExecutor(max_workers=4) as ex:
+    with ProcessPoolExecutor(max_workers=max_workers) as ex:
         to_insert = list(
             tqdm(
-                ex.map(make_image_row_worker, items, chunksize=32),
+                ex.map(make_image_row_worker, items, chunksize=chunk_size),
                 total=len(items),
                 desc="Processing images",
                 unit="img",
@@ -250,11 +263,11 @@ def sync_images_table(resources: Resources, insert_batch_size=10_000, delete_bat
 
 if __name__ == "__main__":
     from lensieve.logging_config import setup_logging
-    from lensieve.resources import create_resources
+    from lensieve.resources import Resources
 
-    data_root = Path(__file__).resolve().parents[3] / "data" / "small_samsung"
+    data_root = Path(__file__).resolve().parents[3] / "data" / "large_samsung"
 
     setup_logging(data_root, verbose=False)
-    resources = create_resources(data_root)
+    resources = Resources(data_root)
 
     sync_images_table(resources)
