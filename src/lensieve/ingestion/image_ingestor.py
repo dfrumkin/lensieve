@@ -2,6 +2,7 @@ import hashlib
 import logging
 from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -50,7 +51,7 @@ SCHEMA = pa.schema(
         pa.field(IF.WIDTH, pa.int64()),
         pa.field(IF.HEIGHT, pa.int64()),
         pa.field(IF.IMAGE_FORMAT, pa.string()),
-        pa.field(IF.DATE_TAKEN, pa.string()),
+        pa.field(IF.DATE_TAKEN, pa.timestamp("us")),
         pa.field(IF.CAMERA_MAKE, pa.string()),
         pa.field(IF.CAMERA_MODEL, pa.string()),
         pa.field(IF.ORIENTATION, pa.string()),
@@ -58,6 +59,15 @@ SCHEMA = pa.schema(
         pa.field(IF.EXIF_ERROR, pa.bool_(), nullable=False),
     ]
 )
+
+
+def parse_exif_datetime(value):
+    if value is None:
+        return None
+    try:
+        return datetime.strptime(str(value).strip(), "%Y:%m:%d %H:%M:%S")
+    except ValueError:
+        return None
 
 
 def sha256_file(path: Path, chunk_size: int = 1024 * 1024) -> str | None:
@@ -129,7 +139,7 @@ def extract_exif_metadata(path: Path) -> dict[str, Any]:
                 strict=False,
             )
 
-        result[IF.DATE_TAKEN] = normalize_exif_value(
+        result[IF.DATE_TAKEN] = parse_exif_datetime(
             tags.get("EXIF DateTimeOriginal") or tags.get("EXIF DateTimeDigitized") or tags.get("Image DateTime")
         )
 
@@ -187,7 +197,7 @@ def summarize(resources: Resources) -> None:
             """
         ).fetchone()
 
-    assert row is not None
+    assert row is not None  # It will never be None for an aggregate query
     total, structure_errors, exif_errors, hash_errors, unique_hashes = row
 
     logger.info("Total images indexed: %s", total)
@@ -206,12 +216,15 @@ def make_image_row_worker(args):
     return make_image_row(root, rel, stat)
 
 
-def sync_images_table(
+def ingest_images(
+    *,
     resources: Resources,
-    insert_batch_size: int = 10_000,
-    delete_batch_size: int = 1_000,
-    max_workers: int = 4,
-    chunk_size: int = 32,
+    from_scratch: bool,
+    delete_stale_data: bool,
+    insert_batch_size: int,
+    delete_batch_size: int,
+    max_workers: int,
+    worker_chunk_size: int,
 ) -> None:
     # Current filesystem snapshot
     paths = list_image_paths(resources)
@@ -222,24 +235,24 @@ def sync_images_table(
         current[rel] = _FileStat(size=stat.st_size, mtime_ns=stat.st_mtime_ns)
 
     # Existing table snapshot
-    table = open_or_create_table(resources.lancedb, TN.IMAGES, SCHEMA, logger)
+    table = open_or_create_table(resources.lancedb, TN.IMAGES, SCHEMA, from_scratch)
+
+    # Find new and stale data
     existing_rows = {
         row[IF.PATH]: row for row in table.search().select([IF.PATH, IF.FILE_SIZE_BYTES, IF.FILE_MTIME_NS]).to_list()
     }
-
-    # Deletions (missing + changed)
     to_delete: list[str] = []
     for rel, row in existing_rows.items():
         if rel in current:
             stat = current[rel]
             if row[IF.FILE_SIZE_BYTES] != stat.size or row[IF.FILE_MTIME_NS] != stat.mtime_ns:
-                to_delete.append(rel)  # changed file (size or mtime mismatch)
+                to_delete.append(rel)  # same path, but changed file (size or mtime mismatch) => always delete
             else:
                 current.pop(rel)  # unchanged file, remove from current to skip re-insertion
-        else:
+        elif delete_stale_data:
             to_delete.append(rel)  # missing file
 
-    delete_rows(table, IF.PATH, to_delete, logger, delete_batch_size)
+    delete_rows(table, IF.PATH, to_delete, delete_batch_size)
 
     # Insertions (new + changed)
     items = [(resources.root, rel, stat) for rel, stat in current.items()]
@@ -248,26 +261,14 @@ def sync_images_table(
     with ProcessPoolExecutor(max_workers=max_workers) as ex:
         to_insert = list(
             tqdm(
-                ex.map(make_image_row_worker, items, chunksize=chunk_size),
+                ex.map(make_image_row_worker, items, chunksize=worker_chunk_size),
                 total=len(items),
                 desc="Processing images",
                 unit="img",
             )
         )
 
-    insert_rows(table, to_insert, logger, insert_batch_size)
+    insert_rows(table, to_insert, insert_batch_size)
 
     # Summarize final state
     summarize(resources)
-
-
-if __name__ == "__main__":
-    from lensieve.logging_config import setup_logging
-    from lensieve.resources import Resources
-
-    data_root = Path(__file__).resolve().parents[3] / "data" / "large_samsung"
-
-    setup_logging(data_root, verbose=False)
-    resources = Resources(data_root)
-
-    sync_images_table(resources)

@@ -1,11 +1,13 @@
 import logging
 from pathlib import Path
 
+from rich.logging import RichHandler
+
 from lensieve.consts import logs_path
 
 
-def setup_logging(root: Path, verbose: bool = False) -> None:
-    log_dir = logs_path(root)
+def setup_logging(root: str | Path, verbose: bool = False) -> None:
+    log_dir = logs_path(Path(root))
     log_dir.mkdir(parents=True, exist_ok=True)
 
     level = logging.DEBUG if verbose else logging.INFO
@@ -13,15 +15,19 @@ def setup_logging(root: Path, verbose: bool = False) -> None:
     fmt = "%(asctime)s %(levelname)s [%(name)s] %(message)s"
 
     logger = logging.getLogger()
+    logger.handlers.clear()
     logger.setLevel(level)
 
-    # avoid duplicate handlers if called twice
-    logger.handlers.clear()
+    # Re-enable loggers disabled by Hydra/dictConfig
+    for name in logging.root.manager.loggerDict:
+        logging.getLogger(name).disabled = False
 
-    stream_handler = logging.StreamHandler()
+    # Output to the screen
+    stream_handler = RichHandler(level=level, rich_tracebacks=True)
+    logger.addHandler(stream_handler)
+
+    # Output to the log file
     file_handler = logging.FileHandler(log_dir / "lensieve.log", encoding="utf-8")
-
-    for h in (stream_handler, file_handler):
-        h.setLevel(level)
-        h.setFormatter(logging.Formatter(fmt))
-        logger.addHandler(h)
+    file_handler.setLevel(level)
+    file_handler.setFormatter(logging.Formatter(fmt))
+    logger.addHandler(file_handler)

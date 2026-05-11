@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class AppPaths:
     LENSIEVE_DIR = ".lensieve"
     LANCEDB_DIR = "lancedb"
@@ -26,26 +26,27 @@ def normalize(name: str) -> str:
     return re.sub(r"[^a-z0-9]+", "_", name.lower()).strip("_")
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class TableName:
     IMAGES = "images"
 
     @staticmethod
-    def clip_like_embeddings(model_name: str) -> str:
-        return f"embeddings__clip_like__{normalize(model_name)}"
-
-    @staticmethod
-    def vision_embeddings(model_name: str) -> str:
-        return f"embeddings__vision__{normalize(model_name)}"
+    def embeddings(model_name: str) -> str:
+        return f"embeddings__{normalize(model_name)}"
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class BaseField:
     SHA256 = "sha256"
 
 
-@dataclass(frozen=True)
-class ImageField(BaseField):
+@dataclass(frozen=True, slots=True)
+class DatedBaseField(BaseField):
+    DATE_TAKEN = "date_taken"  # Denormalization for faster retrieval
+
+
+@dataclass(frozen=True, slots=True)
+class ImageField(DatedBaseField):
     PATH = "path"
 
     FILE_SIZE_BYTES = "file_size_bytes"
@@ -55,7 +56,6 @@ class ImageField(BaseField):
     HEIGHT = "height"
     IMAGE_FORMAT = "image_format"
 
-    DATE_TAKEN = "date_taken"
     CAMERA_MAKE = "camera_make"
     CAMERA_MODEL = "camera_model"
     ORIENTATION = "orientation"
@@ -64,17 +64,17 @@ class ImageField(BaseField):
     EXIF_ERROR = "exif_error"
 
 
-@dataclass(frozen=True)
-class EmbeddingField(BaseField):
+@dataclass(frozen=True, slots=True)
+class EmbeddingField(DatedBaseField):
     VECTOR = "vector"
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class AestheticField(BaseField):
     SCORE = "score"
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class FaceDetectionField(BaseField):
     X1 = "x1"
     Y1 = "y1"
@@ -83,16 +83,18 @@ class FaceDetectionField(BaseField):
     SCORE = "score"
 
 
-RASTER_EXTENSIONS = {
-    ".jpg",
-    ".jpeg",
-    ".heic",
-    ".heif",
-    ".png",
-    ".webp",
-    ".tif",
-    ".tiff",
-}
+RASTER_EXTENSIONS = frozenset(
+    (
+        ".jpg",
+        ".jpeg",
+        ".heic",
+        ".heif",
+        ".png",
+        ".webp",
+        ".tif",
+        ".tiff",
+    )
+)
 
 RAW_FORMAT_MAP = {
     ".dng": "DNG",  # Adobe / generic RAW
@@ -104,5 +106,5 @@ RAW_FORMAT_MAP = {
     ".orf": "ORF",  # Olympus / OM System
     ".raf": "RAF",  # Fujifilm
 }
-RAW_EXTENSIONS = set(RAW_FORMAT_MAP)
+RAW_EXTENSIONS = frozenset(RAW_FORMAT_MAP)
 IMAGE_EXTENSIONS = RASTER_EXTENSIONS | RAW_EXTENSIONS

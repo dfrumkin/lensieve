@@ -1,0 +1,13 @@
+defaults:
+  - config
+  - ingestion: default
+  - _self_
+
+run:
+  - images
+  - clip_like
+  - vision
+  
+root: data/large_samsung
+from_scratch: true
+delete_stale_data: true
