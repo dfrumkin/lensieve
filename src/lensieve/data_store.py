@@ -21,7 +21,7 @@ def duck_table_name(lance_table_name: str) -> str:
     return f"{sql_ident(DUCKDB_CATALOG)}.{sql_ident(DUCKDB_SCHEMA)}.{sql_ident(lance_table_name)}"
 
 
-class Resources:
+class DataStore:
     def __init__(self, root_dir: str | Path) -> None:
         self.root = Path(root_dir).expanduser().resolve()
 

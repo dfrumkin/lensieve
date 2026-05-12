@@ -15,8 +15,8 @@ from tqdm import tqdm
 from lensieve.consts import IMAGE_EXTENSIONS, RAW_EXTENSIONS, RAW_FORMAT_MAP, AppPaths
 from lensieve.consts import ImageField as IF
 from lensieve.consts import TableName as TN
+from lensieve.data_store import DataStore, duck_table_name, sql_ident
 from lensieve.ingestion.utils import delete_rows, insert_rows, open_or_create_table
-from lensieve.resources import Resources, duck_table_name, sql_ident
 
 try:
     from pillow_heif import register_heif_opener
@@ -153,7 +153,7 @@ def extract_exif_metadata(path: Path) -> dict[str, Any]:
     return result
 
 
-def list_image_paths(resources: Resources) -> list[Path]:
+def list_image_paths(resources: DataStore) -> list[Path]:
     paths = []
 
     for dirpath, dirnames, filenames in resources.root.walk():
@@ -180,7 +180,7 @@ def make_image_row(root: Path, rel_path: str, stat: _FileStat) -> dict[str, Any]
     }
 
 
-def summarize(resources: Resources) -> None:
+def summarize(resources: DataStore) -> None:
     str_error_col = sql_ident(IF.STRUCTURE_ERROR)
     exif_error_col = sql_ident(IF.EXIF_ERROR)
     hash_col = sql_ident(IF.SHA256)
@@ -218,7 +218,7 @@ def make_image_row_worker(args):
 
 def ingest_images(
     *,
-    resources: Resources,
+    resources: DataStore,
     from_scratch: bool,
     delete_stale_data: bool,
     insert_batch_size: int,

@@ -7,8 +7,9 @@ from lensieve.models.embedder import Embedder
 
 
 class EmbeddingIngestor(DerivedTableIngestor[Embedder]):
-    def __init__(self, model: Embedder, **kwargs) -> None:
+    def __init__(self, model: Embedder, embedding_dim: int, **kwargs) -> None:
         super().__init__(model=model, table_name=TN.embeddings(model.model_name), **kwargs)
+        self.embedding_dim = embedding_dim
 
     def process_images(self, batch: LoadedBatch) -> list[dict]:
         images = [image_data.image for image_data in batch]
@@ -26,7 +27,7 @@ class EmbeddingIngestor(DerivedTableIngestor[Embedder]):
         return pa.schema(
             [
                 pa.field(EF.SHA256, pa.string()),
-                pa.field(EF.VECTOR, pa.list_(pa.float32(), self.model.embedding_dim)),
+                pa.field(EF.VECTOR, pa.list_(pa.float32(), self.embedding_dim)),
                 pa.field(EF.DATE_TAKEN, pa.timestamp("us")),
             ]
         )

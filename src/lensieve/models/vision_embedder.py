@@ -3,9 +3,13 @@ from typing import Any
 import torch
 
 from lensieve.models.embedder import Embedder
+from lensieve.models.model_manager import ModelKind
 
 
 class VisionEmbedder(Embedder):
+    def __init__(self, **kwargs):
+        super().__init__(model_kind=ModelKind.VISION, **kwargs)
+
     def preprocess(self, processor: Any, *, images: Any) -> tuple[None, dict[str, Any]]:
         return None, processor(images=images, return_tensors="pt")
 

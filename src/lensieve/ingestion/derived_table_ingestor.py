@@ -18,9 +18,9 @@ from lensieve.consts import RAW_EXTENSIONS
 from lensieve.consts import DatedBaseField as DBF
 from lensieve.consts import ImageField as IF
 from lensieve.consts import TableName as TN
+from lensieve.data_store import DataStore, duck_table_name, sql_ident
 from lensieve.ingestion.utils import delete_rows, insert_rows, open_or_create_table
 from lensieve.models.inference_model import InferenceModel
-from lensieve.resources import Resources, duck_table_name, sql_ident
 
 try:
     from pillow_heif import register_heif_opener
@@ -53,7 +53,7 @@ class DerivedTableIngestor[T: InferenceModel](ABC):
     def __init__(
         self,
         *,
-        resources: Resources,
+        resources: DataStore,
         table_name: str,
         model: T,
         workload_batch_size: int,

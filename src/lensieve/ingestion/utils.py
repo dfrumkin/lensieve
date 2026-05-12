@@ -4,7 +4,7 @@ from itertools import batched
 import lancedb
 import pyarrow as pa
 
-from lensieve.resources import sql_ident, sql_quote
+from lensieve.data_store import sql_ident, sql_quote
 
 logger = logging.getLogger(__name__)
 

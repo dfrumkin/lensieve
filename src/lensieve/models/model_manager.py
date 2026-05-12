@@ -1,18 +1,33 @@
 import gc
+from dataclasses import dataclass
+from enum import StrEnum
 from typing import Any
 
 import torch
+from omegaconf import DictConfig
 from transformers import AutoModel, AutoProcessor
 
 
+@dataclass(frozen=True, slots=True)
+class ModelNames:
+    clip_like: str
+    vision: str
+
+
+class ModelKind(StrEnum):
+    CLIP_LIKE = "clip_like"
+    VISION = "vision"
+
+
 class ModelManager:
-    def __init__(self, device: str | None = None):
+    def __init__(self, model_names: ModelNames, device: str | None = None):
         self.device = device or (
             "cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu"
         )
-        self.current_name = None
+        self.model_name: str | None = None
         self.model = None
         self.processor = None
+        self.models = {ModelKind.CLIP_LIKE: model_names.clip_like, ModelKind.VISION: model_names.vision}
 
     def unload(self):
         if self.model is not None:
@@ -24,7 +39,7 @@ class ModelManager:
             del self.processor
             self.processor = None
 
-        self.current_name = None
+        self.model_name = None
         gc.collect()
 
         if self.device == "cuda":
@@ -32,8 +47,12 @@ class ModelManager:
         elif self.device == "mps":
             torch.mps.empty_cache()
 
-    def load(self, model_name: str):
-        if self.current_name == model_name and self.model is not None:
+    def get_model_name(self, model_kind: ModelKind):
+        return self.models[model_kind]
+
+    def load(self, model_kind: ModelKind):
+        model_name = self.get_model_name(model_kind)
+        if self.model_name == model_name and self.model is not None:
             return self.model, self.processor
 
         self.unload()
@@ -48,8 +67,13 @@ class ModelManager:
         self.model.eval()
         self.model.to(self.device)
 
-        self.current_name = model_name
+        self.model_name = model_name
         return self.model, self.processor
 
     def move_to_device(self, batch: dict[str, Any]) -> dict[str, Any]:
         return {k: v.to(self.device) if isinstance(v, torch.Tensor) else v for k, v in batch.items()}
+
+
+def get_model_manager(cfg: DictConfig, device: str | None = None) -> ModelManager:
+    model_names = ModelNames(clip_like=cfg.models.clip_like.name, vision=cfg.models.vision.name)
+    return ModelManager(model_names=model_names, device=device)

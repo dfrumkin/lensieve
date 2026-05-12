@@ -2,6 +2,7 @@ from enum import Enum, auto
 from typing import Any
 
 from lensieve.models.embedder import Embedder
+from lensieve.models.model_manager import ModelKind
 
 
 class EmbedMode(Enum):
@@ -10,6 +11,9 @@ class EmbedMode(Enum):
 
 
 class ClipLikeEmbedder(Embedder):
+    def __init__(self, **kwargs):
+        super().__init__(model_kind=ModelKind.CLIP_LIKE, **kwargs)
+
     def preprocess(self, processor: Any, *, images=None, texts=None):
         if (images is None) == (texts is None):
             raise ValueError("Pass exactly one of images or texts.")
