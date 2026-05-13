@@ -35,6 +35,9 @@ class TableName:
         return f"embeddings__{normalize(model_name)}"
 
 
+DISTANCE_COL = "_distance"
+
+
 @dataclass(frozen=True, slots=True)
 class BaseField:
     SHA256 = "sha256"
@@ -81,30 +84,3 @@ class FaceDetectionField(BaseField):
     X2 = "x2"
     Y2 = "y2"
     SCORE = "score"
-
-
-RASTER_EXTENSIONS = frozenset(
-    (
-        ".jpg",
-        ".jpeg",
-        ".heic",
-        ".heif",
-        ".png",
-        ".webp",
-        ".tif",
-        ".tiff",
-    )
-)
-
-RAW_FORMAT_MAP = {
-    ".dng": "DNG",  # Adobe / generic RAW
-    ".arw": "ARW",  # Sony
-    ".cr2": "CR2",  # Canon
-    ".cr3": "CR3",  # Canon
-    ".nef": "NEF",  # Nikon
-    ".rw2": "RW2",  # Panasonic
-    ".orf": "ORF",  # Olympus / OM System
-    ".raf": "RAF",  # Fujifilm
-}
-RAW_EXTENSIONS = frozenset(RAW_FORMAT_MAP)
-IMAGE_EXTENSIONS = RASTER_EXTENSIONS | RAW_EXTENSIONS

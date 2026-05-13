@@ -12,19 +12,12 @@ import rawpy
 from PIL import Image
 from tqdm import tqdm
 
-from lensieve.consts import IMAGE_EXTENSIONS, RAW_EXTENSIONS, RAW_FORMAT_MAP, AppPaths
+from lensieve.consts import AppPaths
 from lensieve.consts import ImageField as IF
 from lensieve.consts import TableName as TN
 from lensieve.data_store import DataStore, duck_table_name, sql_ident
+from lensieve.image import IMAGE_EXTENSIONS, RAW_EXTENSIONS, RAW_FORMAT_MAP
 from lensieve.ingestion.utils import delete_rows, insert_rows, open_or_create_table
-
-try:
-    from pillow_heif import register_heif_opener
-
-    register_heif_opener()
-except ImportError:
-    pass
-
 
 logger = logging.getLogger(__name__)
 
@@ -153,10 +146,10 @@ def extract_exif_metadata(path: Path) -> dict[str, Any]:
     return result
 
 
-def list_image_paths(resources: DataStore) -> list[Path]:
+def list_image_paths(data_store: DataStore) -> list[Path]:
     paths = []
 
-    for dirpath, dirnames, filenames in resources.root.walk():
+    for dirpath, dirnames, filenames in data_store.root.walk():
         # prevent descending into the .lensieve directory
         dirnames[:] = [d for d in dirnames if d != AppPaths.LENSIEVE_DIR]
 
@@ -180,11 +173,11 @@ def make_image_row(root: Path, rel_path: str, stat: _FileStat) -> dict[str, Any]
     }
 
 
-def summarize(resources: DataStore) -> None:
+def summarize(data_store: DataStore) -> None:
     str_error_col = sql_ident(IF.STRUCTURE_ERROR)
     exif_error_col = sql_ident(IF.EXIF_ERROR)
     hash_col = sql_ident(IF.SHA256)
-    with resources.connect_duckdb_for_lance() as con:
+    with data_store.connect_duckdb_for_lance() as con:
         row = con.execute(
             f"""
             SELECT
@@ -218,7 +211,7 @@ def make_image_row_worker(args):
 
 def ingest_images(
     *,
-    resources: DataStore,
+    data_store: DataStore,
     from_scratch: bool,
     delete_stale_data: bool,
     insert_batch_size: int,
@@ -227,15 +220,15 @@ def ingest_images(
     worker_chunk_size: int,
 ) -> None:
     # Current filesystem snapshot
-    paths = list_image_paths(resources)
+    paths = list_image_paths(data_store)
     current: dict[str, _FileStat] = {}
     for p in paths:
         stat = p.stat()
-        rel = p.relative_to(resources.root).as_posix()
+        rel = p.relative_to(data_store.root).as_posix()
         current[rel] = _FileStat(size=stat.st_size, mtime_ns=stat.st_mtime_ns)
 
     # Existing table snapshot
-    table = open_or_create_table(resources.lancedb, TN.IMAGES, SCHEMA, from_scratch)
+    table = open_or_create_table(data_store.lancedb, TN.IMAGES, SCHEMA, from_scratch)
 
     # Find new and stale data
     existing_rows = {
@@ -255,7 +248,7 @@ def ingest_images(
     delete_rows(table, IF.PATH, to_delete, delete_batch_size)
 
     # Insertions (new + changed)
-    items = [(resources.root, rel, stat) for rel, stat in current.items()]
+    items = [(data_store.root, rel, stat) for rel, stat in current.items()]
 
     # There are exif parsing errors with multithreading => multiprocessing instead.
     with ProcessPoolExecutor(max_workers=max_workers) as ex:
@@ -271,4 +264,4 @@ def ingest_images(
     insert_rows(table, to_insert, insert_batch_size)
 
     # Summarize final state
-    summarize(resources)
+    summarize(data_store)

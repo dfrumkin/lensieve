@@ -19,7 +19,7 @@ def main(cfg: DictConfig) -> None:
     ing_conf = cfg.ingestion
 
     common_conf = dict(
-        resources=DataStore(cfg.root),
+        data_store=DataStore(cfg.root),
         from_scratch=cfg.from_scratch,
         delete_stale_data=cfg.delete_stale_data,
         insert_batch_size=ing_conf.insert_batch_size,

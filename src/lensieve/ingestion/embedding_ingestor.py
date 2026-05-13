@@ -13,7 +13,7 @@ class EmbeddingIngestor(DerivedTableIngestor[Embedder]):
 
     def process_images(self, batch: LoadedBatch) -> list[dict]:
         images = [image_data.image for image_data in batch]
-        vectors = self.model.run(images=images).numpy().astype("float32")
+        vectors = self.model.run(images=images)
         return [
             {
                 EF.SHA256: image_data.sha256,

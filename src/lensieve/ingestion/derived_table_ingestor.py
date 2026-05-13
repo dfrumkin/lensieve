@@ -10,15 +10,14 @@ from threading import Thread
 
 import lancedb
 import pyarrow as pa
-import rawpy
-from PIL import Image, ImageOps
+from PIL import Image
 from tqdm import tqdm
 
-from lensieve.consts import RAW_EXTENSIONS
 from lensieve.consts import DatedBaseField as DBF
 from lensieve.consts import ImageField as IF
 from lensieve.consts import TableName as TN
 from lensieve.data_store import DataStore, duck_table_name, sql_ident
+from lensieve.image import load_image
 from lensieve.ingestion.utils import delete_rows, insert_rows, open_or_create_table
 from lensieve.models.inference_model import InferenceModel
 
@@ -53,7 +52,7 @@ class DerivedTableIngestor[T: InferenceModel](ABC):
     def __init__(
         self,
         *,
-        resources: DataStore,
+        data_store: DataStore,
         table_name: str,
         model: T,
         workload_batch_size: int,
@@ -65,7 +64,7 @@ class DerivedTableIngestor[T: InferenceModel](ABC):
         max_prefetch_batches: int,
         queue_timeout_s: int,
     ) -> None:
-        self.resources = resources
+        self.data_store = data_store
         self.table_name = table_name
         self.model = model
         self.from_scratch = from_scratch
@@ -79,7 +78,7 @@ class DerivedTableIngestor[T: InferenceModel](ABC):
 
     def run(self) -> None:
         table = open_or_create_table(
-            self.resources.lancedb,
+            self.data_store.lancedb,
             self.table_name,
             self.schema(),
             self.from_scratch,
@@ -140,7 +139,7 @@ class DerivedTableIngestor[T: InferenceModel](ABC):
         i_name = duck_table_name(TN.IMAGES)
         structure_error_col = sql_ident(IF.STRUCTURE_ERROR)
 
-        with self.resources.connect_duckdb_for_lance() as con:
+        with self.data_store.connect_duckdb_for_lance() as con:
             if self.delete_stale_data:
                 # Delete stale rows
                 stale_rows = con.execute(
@@ -168,7 +167,7 @@ class DerivedTableIngestor[T: InferenceModel](ABC):
             ).fetchall()
 
         return [
-            ImageData(sha256=sha256, path=self.resources.root / path, date_taken=date_taken)
+            ImageData(sha256=sha256, path=self.data_store.root / path, date_taken=date_taken)
             for sha256, path, date_taken in new_rows
         ]
 
@@ -195,28 +194,12 @@ class DerivedTableIngestor[T: InferenceModel](ABC):
             sha256=image_data.sha256,
             path=image_data.path,
             date_taken=image_data.date_taken,
-            image=self._load_image(image_data.path),
+            image=load_image(image_data.path),
         )
-
-    @staticmethod
-    def _load_image(path: Path) -> Image.Image:
-        ext = path.suffix.lower()
-
-        if ext in RAW_EXTENSIONS:
-            with rawpy.imread(str(path)) as raw:
-                rgb = raw.postprocess()
-            image = Image.fromarray(rgb)
-        else:
-            with Image.open(path) as img:
-                # We do this ourselves so as not to rely on HF or downstream models.
-                image = ImageOps.exif_transpose(img)
-                # Note: .convert() creates a new copy, so we'll never have the original img.
-                image = image.convert("RGB")
-        return image
 
     def _summarize(self) -> None:
         hash_col = sql_ident(DBF.SHA256)
-        with self.resources.connect_duckdb_for_lance() as con:
+        with self.data_store.connect_duckdb_for_lance() as con:
             row = con.execute(
                 f"""
                 SELECT
