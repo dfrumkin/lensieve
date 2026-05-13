@@ -1,7 +1,7 @@
 from pathlib import Path
 
 import numpy as np
-import pandas as pd
+import pyarrow as pa
 
 from lensieve.consts import DISTANCE_COL
 from lensieve.consts import BaseField as BF
@@ -21,20 +21,13 @@ def search_images(args: SearchArgs, model_manager: ModelManager, data_store: Dat
     # Here, we introduce duplicate images if there were any
     matches = add_from_table(data_store, matches, TN.IMAGES, [IF.PATH])
 
-    hits = [
-        ImageHit(
-            path=str(data_store.root / row[IF.PATH]),
-            sha256=str(row[BF.SHA256]),
-            score=float(1.0 - row[DISTANCE_COL]),
-        )
-        for _, row in matches.iterrows()
-    ]
+    hits = get_hits(data_store, matches)
     similarity = calc_similarity_matrix(args, model_manager, data_store, matches)
 
     return SearchResult(hits=hits, similarity_matrix=similarity)
 
 
-def find_matches(args: SearchArgs, model_manager: ModelManager, data_store: DataStore) -> pd.DataFrame:
+def find_matches(args: SearchArgs, model_manager: ModelManager, data_store: DataStore) -> pa.Table:
     if args.text_query:
         model = ClipLikeEmbedder(manager=model_manager)
         query_vector = model.run(texts=[args.text_query])[0]
@@ -84,59 +77,70 @@ def find_matches(args: SearchArgs, model_manager: ModelManager, data_store: Data
         where = " AND ".join(clauses)
         query = query.where(where, prefilter=True)
 
-    return query.limit(args.max_results).to_pandas()
+    return query.limit(args.max_results).to_arrow()
 
 
 def add_from_table(
     data_store: DataStore,
-    matches: pd.DataFrame,
+    matches: pa.Table,
     table_name: str,
     columns: list[str],
-) -> pd.DataFrame:
-    if matches.empty or not columns:
-        return matches.copy()
+) -> pa.Table:
+    if matches.num_rows == 0 or not columns:
+        return matches
 
     sha_col = sql_ident(BF.SHA256)
+    dist_col = sql_ident(DISTANCE_COL)
     table = duck_table_name(table_name)
 
-    select_cols = ", ".join([f"v.{sha_col}"] + [f"v.{sql_ident(col)}" for col in columns])
-
-    shas = matches[BF.SHA256].drop_duplicates().tolist()
-
-    placeholders = ", ".join(["?"] * len(shas))
+    selected_cols = ", ".join(["m.*"] + [f"v.{sql_ident(col)}" for col in columns])
 
     with data_store.connect_duckdb_for_lance() as con:
-        fetched = con.execute(
-            f"""
-            SELECT {select_cols}
-            FROM {table} AS v
-            WHERE v.{sha_col} IN ({placeholders})
-            """,
-            shas,
-        ).fetchdf()
+        con.register("matches", matches)
 
-    return matches.merge(
-        fetched,
-        on=BF.SHA256,
-        how="left",
-        sort=False,
-    )
+        return con.execute(
+            f"""
+            SELECT {selected_cols}
+            FROM matches AS m
+            LEFT JOIN {table} AS v
+            ON m.{sha_col} = v.{sha_col}
+            ORDER BY m.{dist_col}
+            """
+        ).fetch_arrow_table()
+
+
+def get_hits(data_store: DataStore, matches: pa.Table) -> list[ImageHit]:
+    paths = matches[IF.PATH].to_pylist()
+    shas = matches[BF.SHA256].to_pylist()
+    distances = matches[DISTANCE_COL].to_pylist()
+
+    return [
+        ImageHit(
+            path=str(data_store.root / path),
+            sha256=str(sha),
+            score=float(1.0 - distance),
+        )
+        for path, sha, distance in zip(paths, shas, distances, strict=True)
+    ]
 
 
 def calc_similarity_matrix(
-    args: SearchArgs, model_manager: ModelManager, data_store: DataStore, matches: pd.DataFrame
+    args: SearchArgs,
+    model_manager: ModelManager,
+    data_store: DataStore,
+    matches: pa.Table,
 ) -> list[list[float]]:
-    if matches.empty:
+    if matches.num_rows == 0:
         return []
 
     if args.text_query:
-        emb_series = add_from_table(
+        matches = add_from_table(
             data_store=data_store,
-            matches=matches.drop(columns=[EF.VECTOR]),
+            matches=matches.drop([EF.VECTOR]),
             table_name=TN.embeddings(model_manager.get_model_name(ModelKind.VISION)),
             columns=[EF.VECTOR],
-        )[EF.VECTOR]
-    else:
-        emb_series = matches[EF.VECTOR]
-    emb = np.stack([np.asarray(x) for x in emb_series]).astype(np.float32)
+        )
+
+    emb = np.asarray(matches[EF.VECTOR].to_pylist(), dtype=np.float32)
+
     return (emb @ emb.T).tolist()
