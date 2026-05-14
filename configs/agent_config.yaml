@@ -1,0 +1,4 @@
+defaults:
+  - config
+  - agent: default
+  - _self_

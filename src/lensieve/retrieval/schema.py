@@ -10,7 +10,7 @@ class SearchArgs(BaseModel):
     image_query_sha256: str | None = None
     date_start: date | None = None
     date_end: date | None = None
-    max_results: int = Field(default=100, gt=0)
+    max_results: int = Field(default=30, gt=0)
 
     @model_validator(mode="after")
     def exactly_one_query(self):
@@ -23,6 +23,12 @@ class SearchArgs(BaseModel):
         if sum(provided) != 1:
             raise ValueError("Exactly one of text_query, image_query_path, or image_query_sha256 must be provided")
 
+        return self
+
+    @model_validator(mode="after")
+    def valid_date_range(self):
+        if self.date_start and self.date_end and self.date_end < self.date_start:
+            raise ValueError("date_end must be >= date_start")
         return self
 
 

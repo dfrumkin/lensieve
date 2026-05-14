@@ -28,7 +28,28 @@ dependencies = [
     "safetensors>=0.7.0",
     "torch~=2.10.0",
     "transformers>=5.7.0",
+    "huggingface-hub>=1.0",
+    "llama-cpp-python>=0.3.20",
 ]
+
+# Optional: use prebuilt llama-cpp-python wheels.
+# Faster, but less portable and may fail if a wheel is broken/missing.
+#
+# [tool.uv.sources]
+# llama-cpp-python = [
+#     { index = "llama-cpp-metal", marker = "sys_platform == 'darwin'" },
+#     { index = "llama-cpp-cu124", marker = "sys_platform == 'linux'" },
+# ]
+
+# [[tool.uv.index]]
+# name = "llama-cpp-metal"
+# url = "https://abetlen.github.io/llama-cpp-python/whl/metal"
+# explicit = true
+
+# [[tool.uv.index]]
+# name = "llama-cpp-cu124"
+# url = "https://abetlen.github.io/llama-cpp-python/whl/cu124"
+# explicit = true
 
 [project.scripts]
 lensieve = "lensieve.app:main"

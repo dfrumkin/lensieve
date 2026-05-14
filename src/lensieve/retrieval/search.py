@@ -1,3 +1,4 @@
+from datetime import datetime, time, timedelta
 from pathlib import Path
 
 import numpy as np
@@ -18,11 +19,16 @@ from lensieve.retrieval.schema import ImageHit, SearchArgs, SearchResult
 
 def search_images(args: SearchArgs, model_manager: ModelManager, data_store: DataStore) -> SearchResult:
     matches = find_matches(args, model_manager, data_store)
-    # Here, we introduce duplicate images if there were any
-    matches = add_from_table(data_store, matches, TN.IMAGES, [IF.PATH])
 
-    hits = get_hits(data_store, matches)
-    similarity = calc_similarity_matrix(args, model_manager, data_store, matches)
+    if matches:
+        # Here, we introduce duplicate images (same sha, different path) if there were any
+        matches = add_from_table(data_store, matches, TN.IMAGES, [IF.PATH])
+
+        hits = get_hits(matches)
+        similarity = calc_similarity_matrix(args, model_manager, data_store, matches)
+    else:
+        hits = []
+        similarity = []
 
     return SearchResult(hits=hits, similarity_matrix=similarity)
 
@@ -65,13 +71,14 @@ def find_matches(args: SearchArgs, model_manager: ModelManager, data_store: Data
     )
 
     clauses = []
-    date_col = sql_ident(EF.DATE_TAKEN)
 
     if args.date_start is not None:
-        clauses.append(f"{date_col} >= TIMESTAMP '{args.date_start.isoformat()}'")
+        start_dt = datetime.combine(args.date_start, time.min)
+        clauses.append(f"{EF.DATE_TAKEN} >= TIMESTAMP '{start_dt.isoformat(sep=' ')}'")
 
     if args.date_end is not None:
-        clauses.append(f"{date_col} <= TIMESTAMP '{args.date_end.isoformat()}'")
+        end_dt = datetime.combine(args.date_end + timedelta(days=1), time.min)
+        clauses.append(f"{EF.DATE_TAKEN} < TIMESTAMP '{end_dt.isoformat(sep=' ')}'")
 
     if clauses:
         where = " AND ".join(clauses)
@@ -109,14 +116,14 @@ def add_from_table(
         ).fetch_arrow_table()
 
 
-def get_hits(data_store: DataStore, matches: pa.Table) -> list[ImageHit]:
+def get_hits(matches: pa.Table) -> list[ImageHit]:
     paths = matches[IF.PATH].to_pylist()
     shas = matches[BF.SHA256].to_pylist()
     distances = matches[DISTANCE_COL].to_pylist()
 
     return [
         ImageHit(
-            path=str(data_store.root / path),
+            path=str(path),
             sha256=str(sha),
             score=float(1.0 - distance),
         )

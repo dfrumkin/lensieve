@@ -4,34 +4,63 @@ from enum import StrEnum
 from typing import Any
 
 import torch
+from huggingface_hub import hf_hub_download
+from huggingface_hub.errors import LocalEntryNotFoundError
+from llama_cpp import Llama
 from omegaconf import DictConfig
 from transformers import AutoModel, AutoProcessor
 
 
 @dataclass(frozen=True, slots=True)
-class ModelNames:
+class ModelInfo:
+    llm_repo_id: str
+    llm_ctx: int
+    llm: str
     clip_like: str
     vision: str
 
 
 class ModelKind(StrEnum):
+    LLM = "llm"
     CLIP_LIKE = "clip_like"
     VISION = "vision"
 
 
-class ModelManager:
-    def __init__(self, model_names: ModelNames, device: str | None = None):
-        self.device = device or (
-            "cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu"
-        )
-        self.model_name: str | None = None
-        self.model = None
-        self.processor = None
-        self.models = {ModelKind.CLIP_LIKE: model_names.clip_like, ModelKind.VISION: model_names.vision}
+class DeviceType(StrEnum):
+    CUDA = "cuda"
+    MPS = "mps"
+    CPU = "cpu"
 
-    def unload(self):
+    @staticmethod
+    def detect() -> "DeviceType":
+        return (
+            DeviceType.CUDA
+            if torch.cuda.is_available()
+            else DeviceType.MPS
+            if torch.backends.mps.is_available()
+            else DeviceType.CPU
+        )
+
+
+class ModelManager:
+    def __init__(self, model_info: ModelInfo, device: DeviceType | None = None):
+        self.device = device or DeviceType.detect()
+        self.model_name: str | None = None
+        self.model: torch.nn.Module | Llama | None = None
+        self.processor: Any | None = None
+        self.llm_repo_id = model_info.llm_repo_id
+        self.llm_ctx = model_info.llm_ctx
+        self.llm_path = None
+        self.model_names: dict[ModelKind, str] = {
+            ModelKind.LLM: model_info.llm,
+            ModelKind.CLIP_LIKE: model_info.clip_like,
+            ModelKind.VISION: model_info.vision,
+        }
+
+    def unload(self) -> None:
+        is_pytorch = isinstance(self.model, torch.nn.Module)
+
         if self.model is not None:
-            # Note: self.model.to("cpu") is not needed (and never really was).
             del self.model
             self.model = None
 
@@ -42,38 +71,92 @@ class ModelManager:
         self.model_name = None
         gc.collect()
 
-        if self.device == "cuda":
-            torch.cuda.empty_cache()
-        elif self.device == "mps":
-            torch.mps.empty_cache()
+        if is_pytorch:
+            if self.device == DeviceType.CUDA:
+                torch.cuda.empty_cache()
+            elif self.device == DeviceType.MPS:
+                torch.mps.empty_cache()
 
-    def get_model_name(self, model_kind: ModelKind):
-        return self.models[model_kind]
+    def get_model_name(self, model_kind: ModelKind) -> str:
+        return self.model_names[model_kind]
 
-    def load(self, model_kind: ModelKind):
+    def load_hf(self, model_kind: ModelKind) -> tuple[torch.nn.Module, Any]:
+        if model_kind not in (ModelKind.CLIP_LIKE, ModelKind.VISION):
+            raise ValueError(f"load_hf cannot load {model_kind}.  Use a different loader.")
+
         model_name = self.get_model_name(model_kind)
         if self.model_name == model_name and self.model is not None:
-            return self.model, self.processor
+            return self.model, self.processor  # type: ignore
 
         self.unload()
 
         self.processor = AutoProcessor.from_pretrained(model_name, local_files_only=True)
         # Note: torch_dtype is deprecated in favor of dtype.
-        self.model = AutoModel.from_pretrained(
+        model: torch.nn.Module = AutoModel.from_pretrained(
             model_name,
-            dtype=torch.float16 if self.device in {"cuda", "mps"} else torch.float32,
+            dtype=torch.float32 if self.device == DeviceType.CPU else torch.float16,
             local_files_only=True,
         )
-        self.model.eval()
-        self.model.to(self.device)
+        model.eval()
+        model.to(torch.device(self.device.value))
+        self.model = model
 
         self.model_name = model_name
         return self.model, self.processor
 
+    def _get_llm_path(self) -> str:
+        if self.llm_path is not None:
+            return self.llm_path
+
+        filename = self.get_model_name(ModelKind.LLM)
+        repo_id = self.llm_repo_id
+        try:
+            path = hf_hub_download(
+                repo_id=repo_id,
+                filename=filename,
+                local_files_only=True,
+            )
+        except LocalEntryNotFoundError as e:
+            raise FileNotFoundError(
+                "LLM GGUF file is not available in the local Hugging Face cache. "
+                f"Download it first: repo_id={repo_id}, "
+                f"filename={filename}"
+            ) from e
+
+        self.llm_path = path
+        return self.llm_path
+
+    def load_llm(self) -> Llama:
+        model_name = self.get_model_name(ModelKind.LLM)
+        if self.model_name == model_name and self.model is not None:
+            return self.model  # type: ignore
+
+        self.unload()
+
+        self.processor = None
+        self.model = Llama(
+            model_path=self._get_llm_path(),
+            n_ctx=self.llm_ctx,
+            n_gpu_layers=0 if self.device == DeviceType.CPU else -1,
+            verbose=False,
+        )
+
+        self.model_name = model_name
+        return self.model
+
     def move_to_device(self, batch: dict[str, Any]) -> dict[str, Any]:
-        return {k: v.to(self.device) if isinstance(v, torch.Tensor) else v for k, v in batch.items()}
+        return {
+            k: v.to(torch.device(self.device.value)) if isinstance(v, torch.Tensor) else v for k, v in batch.items()
+        }
 
 
-def get_model_manager(cfg: DictConfig, device: str | None = None) -> ModelManager:
-    model_names = ModelNames(clip_like=cfg.models.clip_like.name, vision=cfg.models.vision.name)
-    return ModelManager(model_names=model_names, device=device)
+def get_model_manager(cfg: DictConfig, device: DeviceType | None = None) -> ModelManager:
+    cf = cfg.models
+    model_info = ModelInfo(
+        llm=cf.llm.name,
+        llm_repo_id=cf.llm.repo_id,
+        llm_ctx=cf.llm.n_ctx,
+        clip_like=cf.clip_like.name,
+        vision=cf.vision.name,
+    )
+    return ModelManager(model_info=model_info, device=device)

@@ -16,7 +16,7 @@ class InferenceModel(ABC):
         return self.manager.get_model_name(self.model_kind)
 
     def run(self, **kwargs) -> Any:
-        model, processor = self.manager.load(self.model_kind)
+        model, processor = self.manager.load_hf(self.model_kind)
         params, inputs = self.preprocess(processor, **kwargs)
         inputs = self.manager.move_to_device(inputs)
 
