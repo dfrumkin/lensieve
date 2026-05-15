@@ -8,7 +8,6 @@ from lensieve.agent.prompts import build_photo_agent_system_prompt
 from lensieve.data_store import DataStore
 from lensieve.models.model_manager import ModelManager
 from lensieve.tools.search_photos_impl import SEARCH_PHOTOS_TOOL, search_photos_impl
-from lensieve.types import Hemisphere
 
 logger = logging.getLogger(__name__)
 
@@ -18,13 +17,13 @@ class PhotoAgent:
         self,
         model_manager: ModelManager,
         data_store: DataStore,
-        hemisphere: Hemisphere,
+        northern_hemisphere: bool,
         max_steps: int,
         max_results: int,
     ) -> None:
         self.model_manager = model_manager
         self.data_store = data_store
-        self.hemisphere = hemisphere
+        self.northern_hemisphere = northern_hemisphere
         self.max_steps = max_steps
         self.max_results = max_results
 
@@ -32,7 +31,7 @@ class PhotoAgent:
         messages: list[ChatCompletionRequestMessage] = [
             {
                 "role": "system",
-                "content": build_photo_agent_system_prompt(self.hemisphere),
+                "content": build_photo_agent_system_prompt(self.northern_hemisphere),
             },
             {
                 "role": "user",

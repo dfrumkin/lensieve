@@ -3,8 +3,6 @@ from zoneinfo import ZoneInfo
 
 import tzlocal
 
-from lensieve.types import Hemisphere
-
 PHOTO_AGENT_SYSTEM_PROMPT = """
 You are a local photo-search assistant.
 
@@ -40,37 +38,31 @@ def get_local_timezone() -> str:
     return tzlocal.get_localzone_name()
 
 
+def get_season_block(northern_hemisphere: bool) -> str:
+    return (
+        """- Spring: March 1 - May 31
+- Summer: June 1 - August 31
+- Autumn (Fall): September 1 - November 30
+- Winter: December 1 - February 28/29"""
+        if northern_hemisphere
+        else """- Spring: September 1 - November 30
+- Summer: December 1 - February 28/29
+- Autumn (Fall): March 1 - May 31
+- Winter: June 1 - August 31"""
+    )
+
+
 def build_temporal_context(
-    hemisphere: Hemisphere = Hemisphere.NORTHERN,
+    northern_hemisphere: bool,
 ) -> str:
     timezone = get_local_timezone()
     now = datetime.now(ZoneInfo(timezone))
-
-    seasons = {
-        Hemisphere.NORTHERN: """
-- Spring: March 1 - May 31
-- Summer: June 1 - August 31
-- Autumn (Fall): September 1 - November 30
-- Winter: December 1 - February 28/29
-""",
-        Hemisphere.SOUTHERN: """
-- Spring: September 1 - November 30
-- Summer: December 1 - February 28/29
-- Autumn (Fall): March 1 - May 31
-- Winter: June 1 - August 31
-""",
-        Hemisphere.EQUATORIAL: """
-- Equatorial regions do not have a reliable summer/winter convention.
-- If the user asks for summer/winter/spring/autumn, ask for clarification"""
-        """unless the query also provides explicit months or dates.
-""",
-    }[hemisphere]
+    seasons = get_season_block(northern_hemisphere)
 
     return f"""Current temporal context:
 - Current local date: {now.date().isoformat()}
 - Current local time: {now.strftime("%H:%M:%S")}
 - Current timezone: {timezone}
-- Hemisphere/season context: {hemisphere.value}
 
 Season convention:
 - Use meteorological seasons, not astronomical seasons.
@@ -86,8 +78,8 @@ Temporal reasoning rules:
 """
 
 
-def build_photo_agent_system_prompt(hemisphere: Hemisphere) -> str:
+def build_photo_agent_system_prompt(northern_hemisphere: bool) -> str:
     return f"""{PHOTO_AGENT_SYSTEM_PROMPT}
 
-{build_temporal_context(hemisphere)}
+{build_temporal_context(northern_hemisphere)}
 """
