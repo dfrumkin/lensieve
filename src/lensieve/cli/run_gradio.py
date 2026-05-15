@@ -11,7 +11,7 @@ from lensieve.names import lensieve_root
 
 @hydra.main(version_base=None, config_path="../../../configs", config_name="agent_config")
 def main(cfg: DictConfig) -> None:
-    setup_logging(cfg.root, verbose=False)
+    setup_logging(cfg.root, app_name="gradio")
     model_manager = get_model_manager(cfg)
     data_store = DataStore(cfg.root)
 
@@ -23,7 +23,7 @@ def main(cfg: DictConfig) -> None:
         max_results=cfg.agent.tools.search_photos.max_results,
     )
 
-    cache_dir = lensieve_root(data_store.root) / ".cache" / "display"
+    cache_dir = lensieve_root(data_store.root) / "cache" / "display"
     build_app(agent, cache_dir).launch(inbrowser=True)
 
 

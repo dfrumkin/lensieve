@@ -12,9 +12,9 @@ from lensieve.models.model_manager import DeviceType, ModelKind, get_model_manag
 logger = logging.getLogger(__name__)
 
 
-@hydra.main(config_path="../configs", config_name="config", version_base=None)
+@hydra.main(config_path="../../../configs", config_name="config", version_base=None)
 def main(cfg: DictConfig) -> None:
-    setup_logging(root=cfg.root)
+    setup_logging(root=cfg.root, app_name="download_models")
 
     model_manager = get_model_manager(cfg=cfg, device=DeviceType.CPU)
 

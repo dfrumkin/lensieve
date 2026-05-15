@@ -14,7 +14,7 @@ from lensieve.models.vision_embedder import VisionEmbedder
 
 @hydra.main(version_base=None, config_path="../../../configs", config_name="ing_config")
 def main(cfg: DictConfig) -> None:
-    setup_logging(cfg.root, verbose=False)
+    setup_logging(cfg.root, app_name="ingest")
 
     ing_conf = cfg.ingestion
 

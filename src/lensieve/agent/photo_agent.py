@@ -1,4 +1,5 @@
 import logging
+import time
 from typing import Any, cast
 
 from llama_cpp import ChatCompletionRequestMessage
@@ -41,9 +42,11 @@ class PhotoAgent:
         ]
 
         for step in range(self.max_steps):
-            llm = self.model_manager.load_llm()
+            logger.info("LLM step %d", step)
 
-            logger.debug("LLM step %d", step)
+            t0 = time.perf_counter()
+            llm = self.model_manager.load_llm()
+            t1 = time.perf_counter()
 
             response = cast(
                 dict[str, Any],
@@ -54,11 +57,19 @@ class PhotoAgent:
                     temperature=0,
                 ),
             )
+            t2 = time.perf_counter()
+            usage = response.get("usage", {})
+            logger.info(
+                "LLM timing: load=%.2fs call=%.2fs usage=%s",
+                t1 - t0,
+                t2 - t1,
+                usage,
+            )
 
             assistant_msg = response["choices"][0]["message"]
             content = assistant_msg.get("content") or ""
 
-            logger.debug("LLM response: %s", content)
+            logger.info("LLM response: %s", content)
 
             messages.append(
                 {
