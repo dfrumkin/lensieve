@@ -24,8 +24,8 @@ def search_images(args: SearchArgs, model_manager: ModelManager, data_store: Dat
         # Here, we introduce duplicate images (same sha, different path) if there were any
         matches = add_from_table(data_store, matches, TN.IMAGES, [IF.PATH])
 
-        hits = get_hits(matches)
-        similarity = calc_similarity_matrix(args, model_manager, data_store, matches)
+        hits = get_hits(matches=matches, root=data_store.root)
+        similarity = calc_similarity_matrix(model_manager, data_store, matches, args.text_query is not None)
     else:
         hits = []
         similarity = []
@@ -116,14 +116,14 @@ def add_from_table(
         ).fetch_arrow_table()
 
 
-def get_hits(matches: pa.Table) -> list[ImageHit]:
+def get_hits(matches: pa.Table, root: Path) -> list[ImageHit]:
     paths = matches[IF.PATH].to_pylist()
     shas = matches[BF.SHA256].to_pylist()
     distances = matches[DISTANCE_COL].to_pylist()
 
     return [
         ImageHit(
-            path=str(path),
+            path=root / path,
             sha256=str(sha),
             score=float(1.0 - distance),
         )
@@ -132,15 +132,12 @@ def get_hits(matches: pa.Table) -> list[ImageHit]:
 
 
 def calc_similarity_matrix(
-    args: SearchArgs,
-    model_manager: ModelManager,
-    data_store: DataStore,
-    matches: pa.Table,
+    model_manager: ModelManager, data_store: DataStore, matches: pa.Table, text_query: bool
 ) -> list[list[float]]:
     if matches.num_rows == 0:
         return []
 
-    if args.text_query:
+    if text_query:
         matches = add_from_table(
             data_store=data_store,
             matches=matches.drop([EF.VECTOR]),

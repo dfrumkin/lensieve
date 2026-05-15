@@ -33,7 +33,7 @@ class SearchArgs(BaseModel):
 
 
 class ImageHit(BaseModel):
-    path: str
+    path: Path
     sha256: str
     score: float
 
