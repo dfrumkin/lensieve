@@ -12,12 +12,12 @@ import rawpy
 from PIL import Image
 from tqdm import tqdm
 
-from lensieve.consts import AppPaths
-from lensieve.consts import ImageField as IF
-from lensieve.consts import TableName as TN
 from lensieve.data_store import DataStore, duck_table_name, sql_ident
 from lensieve.image import IMAGE_EXTENSIONS, RAW_EXTENSIONS, RAW_FORMAT_MAP
 from lensieve.ingestion.utils import delete_rows, insert_rows, open_or_create_table
+from lensieve.names import AppPaths
+from lensieve.names import ImageField as IF
+from lensieve.names import TableName as TN
 
 logger = logging.getLogger(__name__)
 

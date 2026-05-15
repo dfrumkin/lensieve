@@ -3,7 +3,7 @@ from pathlib import Path
 
 from rich.logging import RichHandler
 
-from lensieve.consts import logs_path
+from lensieve.names import logs_path
 
 
 def setup_logging(root: str | Path, verbose: bool = False) -> None:

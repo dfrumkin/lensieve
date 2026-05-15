@@ -13,13 +13,13 @@ import pyarrow as pa
 from PIL import Image
 from tqdm import tqdm
 
-from lensieve.consts import DatedBaseField as DBF
-from lensieve.consts import ImageField as IF
-from lensieve.consts import TableName as TN
 from lensieve.data_store import DataStore, duck_table_name, sql_ident
 from lensieve.image import load_image
 from lensieve.ingestion.utils import delete_rows, insert_rows, open_or_create_table
 from lensieve.models.inference_model import InferenceModel
+from lensieve.names import DatedBaseField as DBF
+from lensieve.names import ImageField as IF
+from lensieve.names import TableName as TN
 
 try:
     from pillow_heif import register_heif_opener

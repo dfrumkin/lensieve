@@ -4,10 +4,11 @@ from typing import Any, cast
 from llama_cpp import ChatCompletionRequestMessage
 
 from lensieve.agent.parsing import extract_tool_call, serialize_tool_result
-from lensieve.agent.prompts import PHOTO_AGENT_SYSTEM_PROMPT
+from lensieve.agent.prompts import build_photo_agent_system_prompt
 from lensieve.data_store import DataStore
 from lensieve.models.model_manager import ModelManager
 from lensieve.tools.search_photos_impl import SEARCH_PHOTOS_TOOL, search_photos_impl
+from lensieve.types import Hemisphere
 
 logger = logging.getLogger(__name__)
 
@@ -17,11 +18,13 @@ class PhotoAgent:
         self,
         model_manager: ModelManager,
         data_store: DataStore,
+        hemisphere: Hemisphere,
         max_steps: int,
         max_results: int,
     ) -> None:
         self.model_manager = model_manager
         self.data_store = data_store
+        self.hemisphere = hemisphere
         self.max_steps = max_steps
         self.max_results = max_results
 
@@ -29,7 +32,7 @@ class PhotoAgent:
         messages: list[ChatCompletionRequestMessage] = [
             {
                 "role": "system",
-                "content": PHOTO_AGENT_SYSTEM_PROMPT,
+                "content": build_photo_agent_system_prompt(self.hemisphere),
             },
             {
                 "role": "user",

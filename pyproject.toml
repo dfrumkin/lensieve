@@ -30,6 +30,7 @@ dependencies = [
     "transformers>=5.7.0",
     "huggingface-hub>=1.0",
     "llama-cpp-python>=0.3.20",
+    "tzlocal>=5.3.1",
 ]
 
 # Optional: use prebuilt llama-cpp-python wheels.

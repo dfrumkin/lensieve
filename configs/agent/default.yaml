@@ -3,3 +3,4 @@ tools:
     max_results: 20
 
 max_steps: 3
+hemisphere: northern

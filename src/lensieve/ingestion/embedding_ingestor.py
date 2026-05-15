@@ -1,9 +1,9 @@
 import pyarrow as pa
 
-from lensieve.consts import EmbeddingField as EF
-from lensieve.consts import TableName as TN
 from lensieve.ingestion.derived_table_ingestor import DerivedTableIngestor, LoadedBatch
 from lensieve.models.embedder import Embedder
+from lensieve.names import EmbeddingField as EF
+from lensieve.names import TableName as TN
 
 
 class EmbeddingIngestor(DerivedTableIngestor[Embedder]):

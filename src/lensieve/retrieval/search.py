@@ -4,16 +4,16 @@ from pathlib import Path
 import numpy as np
 import pyarrow as pa
 
-from lensieve.consts import DISTANCE_COL
-from lensieve.consts import BaseField as BF
-from lensieve.consts import EmbeddingField as EF
-from lensieve.consts import ImageField as IF
-from lensieve.consts import TableName as TN
 from lensieve.data_store import DataStore, duck_table_name, sql_ident
 from lensieve.image import load_image
 from lensieve.models.clip_like_embedder import ClipLikeEmbedder
 from lensieve.models.model_manager import ModelKind, ModelManager
 from lensieve.models.vision_embedder import VisionEmbedder
+from lensieve.names import DISTANCE_COL
+from lensieve.names import BaseField as BF
+from lensieve.names import EmbeddingField as EF
+from lensieve.names import ImageField as IF
+from lensieve.names import TableName as TN
 from lensieve.retrieval.schema import ImageHit, SearchArgs, SearchResult
 
 

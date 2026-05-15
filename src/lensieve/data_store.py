@@ -3,7 +3,7 @@ from pathlib import Path
 import duckdb
 import lancedb
 
-from lensieve.consts import lancedb_path
+from lensieve.names import lancedb_path
 
 DUCKDB_CATALOG = "lensieve"
 DUCKDB_SCHEMA = "main"
