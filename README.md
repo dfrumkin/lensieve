@@ -16,6 +16,7 @@ The full pipeline (ingestion and search) can run on CPU-only machines, though pe
 - Querying image metadata (e.g. date, camera)
 - Search by image
 - Face-based search
+- Support for video files and animated images (e.g. GIFs)
 - Location-based search
 - Grouping photos by trips or events
 
@@ -78,7 +79,7 @@ Edit `configs/config.yaml` and set `root` to your image directory.
 - Nested directories are supported  
 - Duplicate filenames across directories are allowed  
 - Multiple image formats are supported  
-- Video files and image sequences are not supported  
+- Video files and animated images (e.g. GIFs) are not supported 
 
 You may also adjust model selection depending on your hardware.
 
