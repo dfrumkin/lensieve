@@ -18,6 +18,7 @@ RASTER_EXTENSIONS = frozenset(
         ".heif",
         ".png",
         ".webp",
+        ".avif",
         ".tif",
         ".tiff",
     )
@@ -32,6 +33,9 @@ RAW_FORMAT_MAP = {
     ".rw2": "RW2",  # Panasonic
     ".orf": "ORF",  # Olympus / OM System
     ".raf": "RAF",  # Fujifilm
+    ".srw": "SRW",  # Samsung
+    ".pef": "PEF",  # Pentax
+    ".x3f": "X3F",  # Sigma/Foveon
 }
 RAW_EXTENSIONS = frozenset(RAW_FORMAT_MAP)
 IMAGE_EXTENSIONS = RASTER_EXTENSIONS | RAW_EXTENSIONS
