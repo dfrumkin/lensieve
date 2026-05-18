@@ -88,7 +88,7 @@ You may also adjust model selection depending on your hardware.
 ### 4. Download models
 
 ```bash
-python src/lensieve/cli/download_models.py
+uv run python src/lensieve/cli/download_models.py
 ```
 
 ## Ingestion
@@ -96,7 +96,7 @@ python src/lensieve/cli/download_models.py
 Process images and build the index:
 
 ```bash
-python src/lensieve/cli/ingest.py
+uv run python src/lensieve/cli/ingest.py
 ```
 
 ## Run
@@ -104,7 +104,7 @@ python src/lensieve/cli/ingest.py
 Start the UI:
 
 ```bash
-python src/lensieve/cli/run_gradio.py
+uv run python src/lensieve/cli/run_gradio.py
 ```
 
 Enter a query, review results, and group similar images.
