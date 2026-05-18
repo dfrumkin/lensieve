@@ -70,17 +70,3 @@ class ImageField(DatedBaseField):
 @dataclass(frozen=True, slots=True)
 class EmbeddingField(DatedBaseField):
     VECTOR = "vector"
-
-
-@dataclass(frozen=True, slots=True)
-class AestheticField(BaseField):
-    SCORE = "score"
-
-
-@dataclass(frozen=True, slots=True)
-class FaceDetectionField(BaseField):
-    X1 = "x1"
-    Y1 = "y1"
-    X2 = "x2"
-    Y2 = "y2"
-    SCORE = "score"

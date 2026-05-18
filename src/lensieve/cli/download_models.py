@@ -7,7 +7,7 @@ from omegaconf import DictConfig
 from transformers import AutoModel, AutoProcessor
 
 from lensieve.logging_config import setup_logging
-from lensieve.models.model_manager import DeviceType, ModelKind, get_model_manager
+from lensieve.models.model_manager import ModelKind, get_model_manager
 
 logger = logging.getLogger(__name__)
 
@@ -16,7 +16,8 @@ logger = logging.getLogger(__name__)
 def main(cfg: DictConfig) -> None:
     setup_logging(root=cfg.root, app_name="download_models")
 
-    model_manager = get_model_manager(cfg=cfg, device=DeviceType.CPU)
+    cfg.device = "cpu"  # We are only downloading
+    model_manager = get_model_manager(cfg=cfg)
 
     for kind in ModelKind:
         model_name = model_manager.get_model_name(kind)

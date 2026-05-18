@@ -5,6 +5,7 @@ defaults:
   - _self_
 
 root: data/large_samsung
+device: null
 
 hydra:
   run:

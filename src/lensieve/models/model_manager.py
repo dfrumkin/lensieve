@@ -43,8 +43,8 @@ class DeviceType(StrEnum):
 
 
 class ModelManager:
-    def __init__(self, model_info: ModelInfo, device: DeviceType | None = None):
-        self.device = device or DeviceType.detect()
+    def __init__(self, model_info: ModelInfo, device: DeviceType) -> None:
+        self.device = device
         self.model_name: str | None = None
         self.model: torch.nn.Module | Llama | None = None
         self.processor: Any | None = None
@@ -150,7 +150,7 @@ class ModelManager:
         }
 
 
-def get_model_manager(cfg: DictConfig, device: DeviceType | None = None) -> ModelManager:
+def get_model_manager(cfg: DictConfig) -> ModelManager:
     cf = cfg.models
     model_info = ModelInfo(
         llm=cf.llm.name,
@@ -159,4 +159,6 @@ def get_model_manager(cfg: DictConfig, device: DeviceType | None = None) -> Mode
         clip_like=cf.clip_like.name,
         vision=cf.vision.name,
     )
-    return ModelManager(model_info=model_info, device=device)
+    return ModelManager(
+        model_info=model_info, device=DeviceType.detect() if cfg.device is None else DeviceType(cfg.device)
+    )
