@@ -4,7 +4,7 @@ defaults:
   - override hydra/hydra_logging: disabled
   - _self_
 
-root: data/large_samsung
+root: ??
 device: null
 
 hydra:
