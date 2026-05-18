@@ -14,7 +14,7 @@ from lensieve.names import BaseField as BF
 from lensieve.names import EmbeddingField as EF
 from lensieve.names import ImageField as IF
 from lensieve.names import TableName as TN
-from lensieve.retrieval.schema import ImageHit, SearchArgs, SearchResult
+from lensieve.retrieval.schema import ImageHit, SearchArgs, SearchResult, Similarity
 
 
 def search_images(args: SearchArgs, model_manager: ModelManager, data_store: DataStore) -> SearchResult:
@@ -27,8 +27,8 @@ def search_images(args: SearchArgs, model_manager: ModelManager, data_store: Dat
         hits = get_hits(matches=matches, root=data_store.root)
         similarity = calc_similarity_matrix(model_manager, data_store, matches, args.text_query is not None)
     else:
-        hits = []
-        similarity = []
+        hits = ()
+        similarity = np.empty((0, 0), dtype=np.float32)
 
     return SearchResult(hits=hits, similarity_matrix=similarity)
 
@@ -116,27 +116,24 @@ def add_from_table(
         ).fetch_arrow_table()
 
 
-def get_hits(matches: pa.Table, root: Path) -> list[ImageHit]:
+def get_hits(matches: pa.Table, root: Path) -> tuple[ImageHit, ...]:
     paths = matches[IF.PATH].to_pylist()
     shas = matches[BF.SHA256].to_pylist()
     distances = matches[DISTANCE_COL].to_pylist()
 
-    return [
+    return tuple(
         ImageHit(
             path=root / path,
             sha256=str(sha),
             score=float(1.0 - distance),
         )
         for path, sha, distance in zip(paths, shas, distances, strict=True)
-    ]
+    )
 
 
 def calc_similarity_matrix(
     model_manager: ModelManager, data_store: DataStore, matches: pa.Table, text_query: bool
-) -> list[list[float]]:
-    if matches.num_rows == 0:
-        return []
-
+) -> Similarity:
     if text_query:
         matches = add_from_table(
             data_store=data_store,
@@ -147,4 +144,4 @@ def calc_similarity_matrix(
 
     emb = np.asarray(matches[EF.VECTOR].to_pylist(), dtype=np.float32)
 
-    return (emb @ emb.T).tolist()
+    return emb @ emb.T

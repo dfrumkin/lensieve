@@ -1,6 +1,9 @@
+from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
 
+import numpy as np
+from numpy.typing import NDArray
 from pydantic import BaseModel, Field, model_validator
 
 
@@ -32,12 +35,18 @@ class SearchArgs(BaseModel):
         return self
 
 
-class ImageHit(BaseModel):
+@dataclass(frozen=True, slots=True)
+class ImageHit:
     path: Path
     sha256: str
     score: float
 
 
-class SearchResult(BaseModel):
-    hits: list[ImageHit]
-    similarity_matrix: list[list[float]]
+# Do we want jaxtyping for this?
+type Similarity = NDArray[np.float32]
+
+
+@dataclass(frozen=True, slots=True)
+class SearchResult:
+    hits: tuple[ImageHit, ...]
+    similarity_matrix: Similarity
