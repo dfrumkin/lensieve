@@ -1,6 +1,6 @@
 import os
 
-# No connection to the internet; do not want to share data.
+# Assume no connection to the internet; do not want to share data.
 os.environ.setdefault("GRADIO_ANALYTICS_ENABLED", "False")
 
 from typing import Any
@@ -32,7 +32,7 @@ def build_app(agent: PhotoAgent) -> gr.Blocks:
                 text = "No matches found." if num_hits == 0 else f"Showing top {num_hits} matches."
                 # Return PIL images to support multiple formats
                 # Could convert to JPEG and cache, but then would need to maintain the cache
-                images = [load_image(hit.path) for hit in hits]
+                images = [(load_image(hit.path), hit.path.name) for hit in hits]
             else:
                 text = f"Internal error: result type is {type(result).__name__}"
                 images = []
