@@ -1,9 +1,9 @@
 # Lensieve
 
+![Demo](docs/demo.gif)
+
 Lensieve is a local, privacy-first tool for semantic search over personal photo collections.  
 It runs entirely offline and does not require external services.
-
-👉 [Watch the demo](assets/lensieve_demo.mp4)
 
 The project is currently at an MVP stage. It supports free-form text queries with optional time references, for example:
 
