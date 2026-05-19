@@ -6,9 +6,15 @@ from lensieve.retrieval.schema import ImageHit, SearchResult
 
 
 @dataclass(frozen=True, slots=True)
+class ImageGroupItem:
+    hit: ImageHit
+    similarity_to_representative: float  # 1.0 for representative
+
+
+@dataclass(frozen=True, slots=True)
 class ImageGroup:
     representative: ImageHit
-    items: tuple[ImageHit, ...]
+    items: tuple[ImageGroupItem, ...]
 
 
 def group_hits_by_similarity(
@@ -29,23 +35,31 @@ def group_hits_by_similarity(
         if assigned[i]:
             continue
 
-        # start new group with representative i
-        group_indices = [i]
         sha256 = hits[i].sha256
+        group_indices = [i]
 
-        # add all similar, unassigned items
         for j in range(i + 1, n_hits):
             if not assigned[j] and (hits[j].sha256 == sha256 or sim[i, j] >= threshold):
                 assigned[j] = True
                 group_indices.append(j)
 
-        # sort group items by score (optional but nice)
-        group_indices.sort(key=lambda idx: hits[idx].score, reverse=True)
+        # Representative first, then descending similarity to representative
+        group_indices.sort(
+            key=lambda idx: 1.0 if idx == i else np.minimum(sim[i, idx], 1.0),
+            reverse=True,
+        )
 
-        items = tuple(hits[idx] for idx in group_indices)
+        items = tuple(
+            ImageGroupItem(
+                hit=hits[idx],
+                similarity_to_representative=min(float(sim[i, idx]), 1.0),
+            )
+            for idx in group_indices
+        )
+
         groups.append(
             ImageGroup(
-                representative=items[0],
+                representative=hits[i],
                 items=items,
             )
         )

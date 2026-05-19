@@ -9,24 +9,32 @@ import gradio as gr
 from PIL.Image import Image
 
 from lensieve.agent.photo_agent import PhotoAgent
-from lensieve.app.grouping import ImageGroup, group_hits_by_similarity
+from lensieve.app.grouping import ImageGroup, ImageGroupItem, group_hits_by_similarity
 from lensieve.image import load_image
 from lensieve.retrieval.schema import SearchResult
 
 
-def _get_image_data(group: ImageGroup) -> tuple[Image, str]:
+def _get_image_group_data(group: ImageGroup) -> tuple[Image, str]:
     path = group.representative.path
     image = load_image(path)
-    name = group.representative.path.name
+    label = path.name
     num_extra = len(group.items) - 1
     if num_extra > 0:
-        name += f" +{num_extra}"
-    return image, name
+        label += f" +{num_extra}"
+    return image, label
+
+
+def _get_image_group_item_data(item: ImageGroupItem) -> tuple[Image, str]:
+    path = item.hit.path
+    image = load_image(path)
+    score = item.similarity_to_representative
+    label = f"{path.name} ({score:.2f})"
+    return image, label
 
 
 def _group(result: SearchResult, threshold: float) -> tuple[list[ImageGroup], list[tuple[Image, str]], str]:
     groups = group_hits_by_similarity(result, threshold)
-    images = [_get_image_data(group) for group in groups]
+    images = [_get_image_group_data(group) for group in groups]
     num_hits = len(images)
     text = "No matches found." if num_hits == 0 else f"Showing top {num_hits} match{'' if num_hits == 1 else 'es'}."
     return groups, images, text
@@ -70,7 +78,7 @@ def build_app(agent: PhotoAgent) -> gr.Blocks:
         if idx is None or idx >= len(groups):
             return []
 
-        return [(load_image(item.path), item.path.name) for item in groups[idx].items] if groups else []
+        return [_get_image_group_item_data(item) for item in groups[idx].items] if groups else []
 
     def regroup_existing_results(
         result: SearchResult | None,
