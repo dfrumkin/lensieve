@@ -3,6 +3,9 @@ import os
 # Assume no connection to the internet; do not want to share data.
 os.environ.setdefault("GRADIO_ANALYTICS_ENABLED", "False")
 
+from collections.abc import Iterator
+from typing import Any
+
 import gradio as gr
 from PIL.Image import Image
 
@@ -59,52 +62,99 @@ def _build_grouped_gallery(
     return groups, images, text
 
 
+def _build_empty_output(
+    msg: str,
+) -> tuple[
+    SearchResult | None,
+    list[ImageGroup],
+    str,
+    Any,
+    Any,
+    Any,
+]:
+    return (
+        None,
+        [],
+        msg,
+        gr.update(value=[], visible=False),
+        gr.update(value=[], visible=False),
+        gr.update(visible=False),
+    )
+
+
+RunQueryOutput = tuple[
+    SearchResult | None,
+    list[ImageGroup],
+    str,
+    Any,
+    Any,
+    Any,
+]
+
+
 def build_app(agent: PhotoAgent) -> gr.Blocks:
     def run_query(
         user_query: str,
         threshold: float,
-    ) -> tuple[SearchResult | None, list[ImageGroup], str, GalleryData, GalleryData]:
+    ) -> Iterator[RunQueryOutput]:
         user_query = user_query.strip()
 
         if not user_query:
-            return None, [], "Enter a query.", [], []
+            yield _build_empty_output("Enter a query.")
+            return
+
+        yield _build_empty_output("<span style='color: gray'>Thinking...</span>")
 
         try:
             result = agent.run_once(user_query)
-
         except Exception as e:
-            return None, [], f"Error: {e}", [], []
+            yield _build_empty_output(f"Error: {e}")
+            return
 
         if isinstance(result, SearchResult):
             groups, images, text = _build_grouped_gallery(result, threshold)
-            return result, groups, text, images, []
+            has_hits = len(images) > 0
+            yield (
+                result,
+                groups,
+                text,
+                gr.update(value=images, visible=has_hits),
+                gr.update(value=[], visible=False),
+                gr.update(value=1.0, visible=has_hits),
+            )
+            return
 
         if isinstance(result, str):
-            return None, [], result, [], []
+            yield _build_empty_output(result)
+            return
 
-        return None, [], f"Internal error: result type is {type(result).__name__}", [], []
+        yield _build_empty_output(f"Internal error: result type is {type(result).__name__}")
+        return
 
     def show_group(
         groups: list[ImageGroup],
         evt: gr.SelectData,
-    ) -> GalleryData:
+    ) -> Any:
         idx = evt.index
 
         if idx is None or idx >= len(groups):
-            return []
+            return gr.update(value=[], visible=False)
 
         group = groups[idx]
-        return [_get_image_group_item_data(item) for item in group.items]
+        return gr.update(
+            value=[_get_image_group_item_data(item) for item in group.items],
+            visible=True,
+        )
 
     def regroup_existing_results(
         result: SearchResult | None,
         threshold: float,
-    ) -> tuple[list[ImageGroup], str, GalleryData, GalleryData]:
+    ) -> tuple[list[ImageGroup], str, Any, Any]:
         if result is None:
-            return [], "", [], []
+            return [], "", gr.update(value=[], visible=False), gr.update(value=[], visible=False)
 
         groups, images, text = _build_grouped_gallery(result, threshold)
-        return groups, text, images, []
+        return groups, text, gr.update(value=images, visible=len(images) > 0), gr.update(value=[], visible=False)
 
     with gr.Blocks(title="Lensieve") as demo:
         gr.Markdown("# Lensieve")
@@ -126,6 +176,7 @@ def build_app(agent: PhotoAgent) -> gr.Blocks:
             step=0.01,
             label="Grouping similarity threshold",
             info="Used only for image search results. Higher = stricter grouping; lower = more images grouped together.",
+            visible=False,
         )
 
         gr.Markdown("### Response")
@@ -140,6 +191,7 @@ def build_app(agent: PhotoAgent) -> gr.Blocks:
             object_fit="contain",
             show_label=True,
             container=False,
+            visible=False,
         )
 
         group_gallery = gr.Gallery(
@@ -148,6 +200,7 @@ def build_app(agent: PhotoAgent) -> gr.Blocks:
             height=600,
             object_fit="contain",
             show_label=True,
+            visible=False,
         )
 
         image_result_state = gr.State(None)
@@ -162,6 +215,7 @@ def build_app(agent: PhotoAgent) -> gr.Blocks:
                 text_output,
                 results_gallery,
                 group_gallery,
+                group_slider,
             ],
         )
 
