@@ -11,7 +11,7 @@ from lensieve.agent.prompts.builders import build_tool_repair_system_prompt, bui
 from lensieve.agent.prompts.roles.metadata_answer import QUERY_METADATA_ANSWER_SYSTEM_PROMPT
 from lensieve.agent.prompts.roles.router import ROUTER_SYSTEM_PROMPT
 from lensieve.data.data_store import DataStore
-from lensieve.models.model_manager import ModelManager, ModelRole
+from lensieve.models.model_manager import LLMInfo, ModelManager, ModelRole
 from lensieve.retrieval.schema import SearchResult
 from lensieve.tools.enums import Tool
 from lensieve.tools.errors import ToolError
@@ -61,7 +61,8 @@ class PhotoAgent:
     ) -> str:
         t0 = time.perf_counter()
         llm = self.model_manager.load_llm(llm_role)
-        llm_info = self.model_manager.get_llm_info(llm_role)
+        model_info = self.model_manager.get_model_info(llm_role)
+        assert isinstance(model_info, LLMInfo), f"Model for role {llm_role.value} is not an LLM"
 
         t1 = time.perf_counter()
 
@@ -70,7 +71,7 @@ class PhotoAgent:
             llm.create_chat_completion(
                 messages=messages,
                 temperature=0,
-                max_tokens=llm_info.max_tokens,
+                max_tokens=model_info.max_tokens,
             ),
         )
 

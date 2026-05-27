@@ -8,7 +8,7 @@ from lensieve.ingestion.embedding_ingestor import EmbeddingIngestor
 from lensieve.ingestion.image_ingestor import ingest_images
 from lensieve.logging_config import setup_logging
 from lensieve.models.clip_like_embedder import ClipLikeEmbedder
-from lensieve.models.model_manager import get_model_manager
+from lensieve.models.model_manager import EncoderInfo, ModelRole, get_model_manager
 from lensieve.models.vision_embedder import VisionEmbedder
 
 
@@ -35,22 +35,28 @@ def main(cfg: DictConfig) -> None:
     derived_conf: dict[str, Any] = OmegaConf.to_container(ing_conf.derived_table, resolve=True)  # type: ignore
     derived_conf.update(common_conf)
 
-    if "clip_like" in cfg.run:
+    model_role = ModelRole.CLIP_LIKE
+    if model_role.value in cfg.run:
+        model_info = manager.get_model_info(model_role)
+        assert isinstance(model_info, EncoderInfo), f"Model for role {model_role.value} is not an encoder"
         clip_like_model = ClipLikeEmbedder(manager=manager)
         clip_like_ingestor = EmbeddingIngestor(
             model=clip_like_model,
-            embedding_dim=cfg.models.clip_like.embedding_dim,
-            workload_batch_size=cfg.models.clip_like.batch_size,
+            embedding_dim=model_info.embedding_dim,
+            workload_batch_size=model_info.batch_size,
             **derived_conf,
         )
         clip_like_ingestor.run()
 
-    if "vision" in cfg.run:
+    model_role = ModelRole.VISION
+    if model_role.value in cfg.run:
+        model_info = manager.get_model_info(model_role)
+        assert isinstance(model_info, EncoderInfo), f"Model for role {model_role.value} is not an encoder"
         vision_model = VisionEmbedder(manager=manager)
         vision_ingestor = EmbeddingIngestor(
             model=vision_model,
-            embedding_dim=cfg.models.vision.embedding_dim,
-            workload_batch_size=cfg.models.vision.batch_size,
+            embedding_dim=model_info.embedding_dim,
+            workload_batch_size=model_info.batch_size,
             **derived_conf,
         )
         vision_ingestor.run()

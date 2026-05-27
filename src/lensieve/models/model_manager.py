@@ -144,14 +144,14 @@ class ModelManager:
 
         return path
 
-    def get_llm_info(self, model_role: ModelRole) -> LLMInfo:
-        model_info = self.model_info_by_role[model_role]
-        if not isinstance(model_info, LLMInfo):
-            raise ValueError(f"Model role {model_role.value} is not an LLM model.")
-        return model_info
+    def get_model_info(self, model_role: ModelRole) -> ModelInfo:
+        return self.model_info_by_role[model_role]
 
     def load_llm(self, model_role: ModelRole) -> Llama:
-        model_info = self.get_llm_info(model_role)
+        model_info = self.get_model_info(model_role)
+        if not isinstance(model_info, LLMInfo):
+            raise ValueError(f"Model role {model_role.value} is not an LLM model.")
+
         if self.loaded_model_info == model_info and self.model is not None:
             return self.model  # type: ignore
         self.unload_model()
