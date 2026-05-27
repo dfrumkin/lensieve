@@ -1,3 +1,5 @@
+from typing import Any
+
 import sqlglot
 from pydantic import BaseModel, Field, ValidationError
 from sqlglot import expressions as exp
@@ -5,12 +7,19 @@ from sqlglot import expressions as exp
 from lensieve.data.data_store import DataStore
 from lensieve.data.utils import DUCKDB_CATALOG, DUCKDB_SCHEMA
 from lensieve.names import TableName as TN
-from lensieve.query.spec import QueryResult
 from lensieve.tools.errors import ToolError
 
 
 class SqlQueryArgs(BaseModel):
     sql: str = Field(min_length=1)
+
+
+class QueryResult(BaseModel):
+    columns: list[str]
+    rows: list[dict[str, Any]]
+    row_count: int
+    sql: str | None = None
+    params: list[Any] | None = None
 
 
 FORBIDDEN_SQL_TYPES = (
@@ -42,8 +51,6 @@ FORBIDDEN_FUNCTIONS = frozenset(
 
 ALLOWED_TABLES = frozenset({TN.IMAGES_VIEW})
 
-MAX_SQL_RESULT_ROWS = 100  # TODO: make configurable
-
 
 def _qualify_allowed_tables(root: exp.Select) -> exp.Select:
     root = root.copy()
@@ -61,13 +68,13 @@ def _qualify_allowed_tables(root: exp.Select) -> exp.Select:
     return root
 
 
-def _enforce_limit(root: exp.Select) -> exp.Select:
+def _enforce_limit(root: exp.Select, max_results: int) -> exp.Select:
     root = root.copy()
 
     limit = root.args.get("limit")
 
     if limit is None:
-        root.set("limit", exp.Limit(expression=exp.Literal.number(MAX_SQL_RESULT_ROWS)))
+        root.set("limit", exp.Limit(expression=exp.Literal.number(max_results)))
         return root
 
     limit_expr = limit.args.get("expression")
@@ -77,13 +84,13 @@ def _enforce_limit(root: exp.Select) -> exp.Select:
 
     value = int(limit_expr.this)
 
-    if value > MAX_SQL_RESULT_ROWS:
-        limit.set("expression", exp.Literal.number(MAX_SQL_RESULT_ROWS))
+    if value > max_results:
+        limit.set("expression", exp.Literal.number(max_results))
 
     return root
 
 
-def validate_metadata_sql(sql: str) -> str | ToolError:
+def validate_metadata_sql(sql: str, max_results: int) -> str | ToolError:
     sql = sql.strip().rstrip(";")
 
     try:
@@ -109,7 +116,7 @@ def validate_metadata_sql(sql: str) -> str | ToolError:
 
     try:
         root = _qualify_allowed_tables(root)
-        root = _enforce_limit(root)
+        root = _enforce_limit(root, max_results)
     except ValueError as e:
         return ToolError(error_type="Invalid SQL", message=str(e))
 
@@ -119,6 +126,7 @@ def validate_metadata_sql(sql: str) -> str | ToolError:
 def query_metadata_sql_impl(
     args: dict,
     data_store: DataStore,
+    max_results: int,
     include_sql: bool = False,
 ) -> QueryResult | ToolError:
     try:
@@ -129,7 +137,7 @@ def query_metadata_sql_impl(
             message=str(e),
         )
 
-    sql_or_error = validate_metadata_sql(parsed_args.sql)
+    sql_or_error = validate_metadata_sql(parsed_args.sql, max_results)
     if isinstance(sql_or_error, ToolError):
         return sql_or_error
 

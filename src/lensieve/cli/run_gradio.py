@@ -18,7 +18,8 @@ def main(cfg: DictConfig) -> None:
         model_manager=model_manager,
         data_store=data_store,
         northern_hemisphere=cfg.agent.northern_hemisphere,
-        max_results=cfg.agent.tools.search_photos.max_results,
+        max_image_results=cfg.agent.tools.search_photos.max_results,
+        max_metadata_results=cfg.agent.tools.query_metadata.max_results,
     )
 
     build_app(agent).launch(inbrowser=True)

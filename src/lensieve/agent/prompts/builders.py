@@ -7,8 +7,6 @@ from lensieve.agent.enums import AgentRoute
 from lensieve.agent.prompts.roles.metadata_query import QUERY_METADATA_SYSTEM_PROMPT
 from lensieve.agent.prompts.roles.photo_search import SEARCH_PHOTOS_SYSTEM_PROMPT
 from lensieve.agent.prompts.roles.repair import REPAIR_TOOL_CALL_SYSTEM_PROMPT
-
-# from lensieve.agent.prompts.tools.query_metadata import QUERY_METADATA_TOOL_DESCRIPTION  # TODO: Remove?
 from lensieve.agent.prompts.tools.query_metadata_sql import QUERY_METADATA_SQL_TOOL_DESCRIPTION
 from lensieve.agent.prompts.tools.search_photos import SEARCH_PHOTOS_TOOL_DESCRIPTION
 

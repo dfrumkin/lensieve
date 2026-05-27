@@ -12,12 +12,10 @@ from lensieve.agent.prompts.roles.metadata_answer import QUERY_METADATA_ANSWER_S
 from lensieve.agent.prompts.roles.router import ROUTER_SYSTEM_PROMPT
 from lensieve.data.data_store import DataStore
 from lensieve.models.model_manager import ModelManager, ModelRole
-from lensieve.query.spec import QueryResult
 from lensieve.retrieval.schema import SearchResult
 from lensieve.tools.enums import Tool
 from lensieve.tools.errors import ToolError
-from lensieve.tools.query_metadata import query_metadata_impl
-from lensieve.tools.query_metadata_sql import query_metadata_sql_impl
+from lensieve.tools.query_metadata_sql import QueryResult, query_metadata_sql_impl
 from lensieve.tools.search_photos import search_photos_impl
 
 logger = logging.getLogger(__name__)
@@ -47,12 +45,14 @@ class PhotoAgent:
         model_manager: ModelManager,
         data_store: DataStore,
         northern_hemisphere: bool,
-        max_results: int,
+        max_image_results: int,
+        max_metadata_results: int,
     ) -> None:
         self.model_manager = model_manager
         self.data_store = data_store
         self.northern_hemisphere = northern_hemisphere
-        self.max_results = max_results
+        self.max_image_results = max_image_results
+        self.max_metadata_results = max_metadata_results
 
     def _call_llm(
         self,
@@ -143,12 +143,12 @@ class PhotoAgent:
                     args=args,
                     model_manager=self.model_manager,
                     data_store=self.data_store,
-                    max_results=self.max_results,
+                    max_results=self.max_image_results,
                 )
-            case Tool.QUERY_METADATA:
-                result = query_metadata_impl(args=args, data_store=self.data_store)
             case Tool.QUERY_METADATA_SQL:
-                result = query_metadata_sql_impl(args=args, data_store=self.data_store)
+                result = query_metadata_sql_impl(
+                    args=args, data_store=self.data_store, max_results=self.max_metadata_results
+                )
             case _:
                 result = ToolError(error_type="Cannot run the tool", message=f"Unknown tool: {name}")
 
@@ -342,7 +342,8 @@ if __name__ == "__main__":
             model_manager=model_manager,
             data_store=data_store,
             northern_hemisphere=cfg.agent.northern_hemisphere,
-            max_results=cfg.agent.tools.search_photos.max_results,
+            max_image_results=cfg.agent.tools.search_photos.max_results,
+            max_metadata_results=cfg.agent.tools.query_metadata.max_results,
         )
 
         query = "Dog"

@@ -1,5 +1,7 @@
 tools:
   search_photos:
     max_results: 20
+  query_metadata:
+    max_results: 100
 
 northern_hemisphere: true
