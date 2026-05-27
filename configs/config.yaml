@@ -5,7 +5,7 @@ defaults:
   - override hydra/hydra_logging: disabled
   - _self_
 
-root: ??
+root: ???
 device: null
 
 hydra:
