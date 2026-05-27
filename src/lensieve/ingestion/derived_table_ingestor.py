@@ -13,7 +13,8 @@ import pyarrow as pa
 from PIL import Image
 from tqdm import tqdm
 
-from lensieve.data_store import DataStore, duck_table_name, sql_ident
+from lensieve.data.data_store import DataStore
+from lensieve.data.utils import duck_table_name, sql_ident
 from lensieve.image import load_image
 from lensieve.ingestion.utils import delete_rows, insert_rows, open_or_create_table
 from lensieve.models.inference_model import InferenceModel

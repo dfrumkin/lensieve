@@ -4,7 +4,6 @@ from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Any
 
 import exifread
 import pyarrow as pa
@@ -12,8 +11,9 @@ import rawpy
 from PIL import Image
 from tqdm import tqdm
 
-from lensieve.data_store import DataStore, duck_table_name, sql_ident
-from lensieve.image import IMAGE_EXTENSIONS, RAW_EXTENSIONS, RAW_FORMAT_MAP
+from lensieve.data.data_store import DataStore
+from lensieve.data.utils import duck_table_name, sql_ident
+from lensieve.image import IMAGE_EXTENSIONS, RAW_EXTENSIONS, RAW_FORMAT_MAP, parse_orientation
 from lensieve.ingestion.utils import delete_rows, insert_rows, open_or_create_table
 from lensieve.names import AppPaths
 from lensieve.names import ImageField as IF
@@ -76,7 +76,7 @@ def sha256_file(path: Path, chunk_size: int = 1024 * 1024) -> str | None:
     return sha
 
 
-def normalize_exif_value(value: Any) -> str | None:
+def normalize_exif_value(value: object) -> str | None:
     return None if value is None else (str(value).strip() or None)
 
 
@@ -94,8 +94,8 @@ def extract_raw_structure(path: Path) -> _FileFormat:
         )
 
 
-def extract_image_structure(path: Path) -> dict[str, Any]:
-    result: dict[str, Any] = {
+def extract_image_structure(path: Path) -> dict[str, object]:
+    result: dict[str, object] = {
         IF.WIDTH: None,
         IF.HEIGHT: None,
         IF.IMAGE_FORMAT: None,
@@ -115,8 +115,8 @@ def extract_image_structure(path: Path) -> dict[str, Any]:
     return result
 
 
-def extract_exif_metadata(path: Path) -> dict[str, Any]:
-    result: dict[str, Any] = {
+def extract_exif_metadata(path: Path) -> dict[str, object]:
+    result: dict[str, object] = {
         IF.DATE_TAKEN: None,
         IF.CAMERA_MAKE: None,
         IF.CAMERA_MODEL: None,
@@ -138,7 +138,9 @@ def extract_exif_metadata(path: Path) -> dict[str, Any]:
 
         result[IF.CAMERA_MAKE] = normalize_exif_value(tags.get("Image Make"))
         result[IF.CAMERA_MODEL] = normalize_exif_value(tags.get("Image Model"))
-        result[IF.ORIENTATION] = normalize_exif_value(tags.get("Image Orientation"))
+
+        orientation = parse_orientation(normalize_exif_value(tags.get("Image Orientation")))
+        result[IF.ORIENTATION] = orientation.value if orientation is not None else None
     except Exception as e:
         logger.error("Error extracting exif data from %s: %s", path, e)
         result[IF.EXIF_ERROR] = True
@@ -161,7 +163,7 @@ def list_image_paths(data_store: DataStore) -> list[Path]:
     return sorted(paths)
 
 
-def make_image_row(root: Path, rel_path: str, stat: _FileStat) -> dict[str, Any]:
+def make_image_row(root: Path, rel_path: str, stat: _FileStat) -> dict[str, object]:
     path = root / rel_path
     return {
         IF.PATH: rel_path,

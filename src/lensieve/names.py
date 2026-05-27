@@ -1,9 +1,7 @@
 import re
-from dataclasses import dataclass
 from pathlib import Path
 
 
-@dataclass(frozen=True, slots=True)
 class AppPaths:
     LENSIEVE_DIR = ".lensieve"
     LANCEDB_DIR = "lancedb"
@@ -26,9 +24,9 @@ def normalize(name: str) -> str:
     return re.sub(r"[^a-z0-9]+", "_", name.lower()).strip("_")
 
 
-@dataclass(frozen=True, slots=True)
 class TableName:
     IMAGES = "images"
+    IMAGES_VIEW = "images_view"
 
     @staticmethod
     def embeddings(model_name: str) -> str:
@@ -38,17 +36,14 @@ class TableName:
 DISTANCE_COL = "_distance"
 
 
-@dataclass(frozen=True, slots=True)
 class BaseField:
     SHA256 = "sha256"
 
 
-@dataclass(frozen=True, slots=True)
 class DatedBaseField(BaseField):
     DATE_TAKEN = "date_taken"  # Denormalization for faster retrieval
 
 
-@dataclass(frozen=True, slots=True)
 class ImageField(DatedBaseField):
     PATH = "path"
 
@@ -67,6 +62,12 @@ class ImageField(DatedBaseField):
     EXIF_ERROR = "exif_error"
 
 
-@dataclass(frozen=True, slots=True)
+class ImageViewField(ImageField):
+    DISPLAY_WIDTH = "display_width"
+    DISPLAY_HEIGHT = "display_height"
+    ORIENTATION_KIND = "orientation_kind"
+    ASPECT_RATIO = "aspect_ratio"
+
+
 class EmbeddingField(DatedBaseField):
     VECTOR = "vector"

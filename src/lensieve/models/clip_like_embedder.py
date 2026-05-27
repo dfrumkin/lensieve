@@ -2,7 +2,7 @@ from enum import Enum, auto
 from typing import Any
 
 from lensieve.models.embedder import Embedder
-from lensieve.models.model_manager import ModelKind
+from lensieve.models.model_manager import ModelRole
 
 
 class EmbedMode(Enum):
@@ -12,7 +12,7 @@ class EmbedMode(Enum):
 
 class ClipLikeEmbedder(Embedder):
     def __init__(self, **kwargs):
-        super().__init__(model_kind=ModelKind.CLIP_LIKE, **kwargs)
+        super().__init__(model_kind=ModelRole.CLIP_LIKE, **kwargs)
 
     def preprocess(self, processor: Any, *, images=None, texts=None):
         if (images is None) == (texts is None):

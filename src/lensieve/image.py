@@ -1,3 +1,4 @@
+from enum import StrEnum
 from pathlib import Path
 
 import rawpy
@@ -10,19 +11,17 @@ try:
 except ImportError:
     pass
 
-RASTER_EXTENSIONS = frozenset(
-    (
-        ".jpg",
-        ".jpeg",
-        ".heic",
-        ".heif",
-        ".png",
-        ".webp",
-        ".avif",
-        ".tif",
-        ".tiff",
-    )
-)
+RASTER_FORMAT_MAP = {
+    ".jpg": "JPEG",
+    ".jpeg": "JPEG",
+    ".heic": "HEIF",
+    ".heif": "HEIF",
+    ".png": "PNG",
+    ".webp": "WEBP",
+    ".avif": "AVIF",
+    ".tif": "TIFF",
+    ".tiff": "TIFF",
+}
 
 RAW_FORMAT_MAP = {
     ".dng": "DNG",  # Adobe / generic RAW
@@ -38,7 +37,8 @@ RAW_FORMAT_MAP = {
     ".x3f": "X3F",  # Sigma/Foveon
 }
 RAW_EXTENSIONS = frozenset(RAW_FORMAT_MAP)
-IMAGE_EXTENSIONS = RASTER_EXTENSIONS | RAW_EXTENSIONS
+IMAGE_EXTENSIONS = frozenset(RASTER_FORMAT_MAP) | RAW_EXTENSIONS
+IMAGE_FORMATS = frozenset(frozenset(RASTER_FORMAT_MAP.values()) | frozenset(RAW_FORMAT_MAP.values()))
 
 
 def load_image(path: Path) -> Image.Image:
@@ -55,3 +55,26 @@ def load_image(path: Path) -> Image.Image:
             # Note: .convert() creates a new copy, so we'll never have the original img.
             image = image.convert("RGB")
     return image
+
+
+class ExifOrientation(StrEnum):
+    HORIZONTAL = "Horizontal (normal)"
+    MIRRORED_HORIZONTAL = "Mirrored horizontal"
+    ROTATED_180 = "Rotated 180"
+    MIRRORED_VERTICAL = "Mirrored vertical"
+    MIRRORED_HORIZONTAL_ROTATED_90_CCW = "Mirrored horizontal then rotated 90 CCW"
+    ROTATED_90_CW = "Rotated 90 CW"
+    MIRRORED_HORIZONTAL_ROTATED_90_CW = "Mirrored horizontal then rotated 90 CW"
+    ROTATED_90_CCW = "Rotated 90 CCW"
+
+
+def parse_orientation(value: object | None) -> ExifOrientation | None:
+    if value is None:
+        return None
+
+    text = str(value)
+
+    try:
+        return ExifOrientation(text)
+    except ValueError:
+        raise ValueError(f"Unknown EXIF orientation: {text!r}") from None

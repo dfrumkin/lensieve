@@ -7,7 +7,7 @@ from omegaconf import DictConfig
 from transformers import AutoModel, AutoProcessor
 
 from lensieve.logging_config import setup_logging
-from lensieve.models.model_manager import ModelKind, get_model_manager
+from lensieve.models.model_manager import LLMInfo, get_model_manager
 
 logger = logging.getLogger(__name__)
 
@@ -15,17 +15,15 @@ logger = logging.getLogger(__name__)
 @hydra.main(config_path="../../../configs", config_name="config", version_base=None)
 def main(cfg: DictConfig) -> None:
     setup_logging(root=cfg.root, app_name="download_models")
-
-    cfg.device = "cpu"  # We are only downloading
     model_manager = get_model_manager(cfg=cfg)
 
-    for kind in ModelKind:
-        model_name = model_manager.get_model_name(kind)
-        logger.info("Downloading %s", model_name)
+    for model_info in model_manager.unique_models:
+        model_name = model_info.name
 
-        if kind == ModelKind.LLM:
+        logger.info("Downloading %s", model_name)
+        if isinstance(model_info, LLMInfo):
             hf_hub_download(
-                repo_id=model_manager.llm_repo_id,
+                repo_id=model_info.repo_id,
                 filename=model_name,
             )
         else:
@@ -34,7 +32,6 @@ def main(cfg: DictConfig) -> None:
                 model_name,
                 dtype=torch.float32,
             )
-
         logger.info("Finished downloading %s", model_name)
 
 

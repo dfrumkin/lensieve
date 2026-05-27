@@ -1,0 +1,29 @@
+router:
+  model: qwen_1_5b
+  max_tokens: 32
+
+image_retrieval:
+  model: qwen_7b
+  max_tokens: 256
+
+image_retrieval_repair:
+  model: qwen_7b
+  max_tokens: 256
+
+metadata_query:
+  model: qwen_14b
+  max_tokens: 512
+
+metadata_query_repair:
+  model: qwen_14b
+  max_tokens: 512
+
+metadata_interpreter:
+  model: qwen_7b
+  max_tokens: 512
+
+clip_like:
+  model: siglip2_large
+
+vision:
+  model: dinov2_large

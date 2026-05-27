@@ -1,0 +1,29 @@
+qwen_1_5b:
+  source: llama_cpp_hf
+  repo_id: Qwen/Qwen2.5-1.5B-Instruct-GGUF
+  name: qwen2.5-1.5b-instruct-q4_k_m.gguf
+  n_ctx: 512
+
+qwen_7b:
+  source: llama_cpp_hf
+  repo_id: TheRains/Qwen2.5-7B-Instruct-Q4_K_M-GGUF
+  name: qwen2.5-7b-instruct-q4_k_m.gguf
+  n_ctx: 8192
+
+qwen_14b:
+  source: llama_cpp_hf
+  repo_id: TheRains/Qwen2.5-14B-Instruct-Q4_K_M-GGUF
+  name: qwen2.5-14b-instruct-q4_k_m.gguf
+  n_ctx: 8192
+
+siglip2_large:
+  source: transformers
+  name: google/siglip2-large-patch16-384
+  batch_size: 24
+  embedding_dim: 1024
+
+dinov2_large:
+  source: transformers
+  name: facebook/dinov2-with-registers-large
+  batch_size: 40
+  embedding_dim: 1024

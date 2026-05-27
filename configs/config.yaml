@@ -1,5 +1,6 @@
 defaults:
-  - models: m4_32_large
+  - models: default
+  - model_roles: default
   - override hydra/job_logging: disabled
   - override hydra/hydra_logging: disabled
   - _self_

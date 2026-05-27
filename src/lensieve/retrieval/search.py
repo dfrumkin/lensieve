@@ -4,10 +4,11 @@ from pathlib import Path
 import numpy as np
 import pyarrow as pa
 
-from lensieve.data_store import DataStore, duck_table_name, sql_ident
+from lensieve.data.data_store import DataStore
+from lensieve.data.utils import duck_table_name, sql_ident
 from lensieve.image import load_image
 from lensieve.models.clip_like_embedder import ClipLikeEmbedder
-from lensieve.models.model_manager import ModelKind, ModelManager
+from lensieve.models.model_manager import ModelManager, ModelRole
 from lensieve.models.vision_embedder import VisionEmbedder
 from lensieve.names import DISTANCE_COL
 from lensieve.names import BaseField as BF
@@ -36,7 +37,10 @@ def search_images(args: SearchArgs, model_manager: ModelManager, data_store: Dat
 def find_matches(args: SearchArgs, model_manager: ModelManager, data_store: DataStore) -> pa.Table:
     if args.text_query:
         model = ClipLikeEmbedder(manager=model_manager)
-        query_vector = model.run(texts=[args.text_query])[0]
+        query = " ".join(args.text_query.strip().split())
+        # Normalize short visual queries into a caption-like form.
+        query = f"a photo of {query.lower()}"
+        query_vector = model.run(texts=[query])[0]
     else:
         model = VisionEmbedder(manager=model_manager)
         if args.image_query_path:
@@ -138,7 +142,7 @@ def calc_similarity_matrix(
         matches = add_from_table(
             data_store=data_store,
             matches=matches.drop([EF.VECTOR]),
-            table_name=TN.embeddings(model_manager.get_model_name(ModelKind.VISION)),
+            table_name=TN.embeddings(model_manager.get_model_name(ModelRole.VISION)),
             columns=[EF.VECTOR],
         )
 

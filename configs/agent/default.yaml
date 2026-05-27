@@ -2,5 +2,4 @@ tools:
   search_photos:
     max_results: 20
 
-max_steps: 3
 northern_hemisphere: true

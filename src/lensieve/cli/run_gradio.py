@@ -3,7 +3,7 @@ from omegaconf import DictConfig
 
 from lensieve.agent.photo_agent import PhotoAgent
 from lensieve.app.gradio_app import build_app
-from lensieve.data_store import DataStore
+from lensieve.data.data_store import DataStore
 from lensieve.logging_config import setup_logging
 from lensieve.models.model_manager import get_model_manager
 
@@ -18,7 +18,6 @@ def main(cfg: DictConfig) -> None:
         model_manager=model_manager,
         data_store=data_store,
         northern_hemisphere=cfg.agent.northern_hemisphere,
-        max_steps=cfg.agent.max_steps,
         max_results=cfg.agent.tools.search_photos.max_results,
     )
 

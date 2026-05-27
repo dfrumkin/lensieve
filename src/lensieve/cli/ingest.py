@@ -3,7 +3,7 @@ from typing import Any
 import hydra
 from omegaconf import DictConfig, OmegaConf
 
-from lensieve.data_store import DataStore
+from lensieve.data.data_store import DataStore
 from lensieve.ingestion.embedding_ingestor import EmbeddingIngestor
 from lensieve.ingestion.image_ingestor import ingest_images
 from lensieve.logging_config import setup_logging
