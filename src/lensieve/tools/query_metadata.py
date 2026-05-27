@@ -123,7 +123,7 @@ def validate_metadata_sql(sql: str, max_results: int) -> str | ToolError:
     return root.sql(dialect="duckdb")
 
 
-def query_metadata_sql_impl(
+def query_metadata_impl(
     args: dict,
     data_store: DataStore,
     max_results: int,

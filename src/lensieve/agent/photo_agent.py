@@ -15,7 +15,7 @@ from lensieve.models.model_manager import LLMInfo, ModelManager, ModelRole
 from lensieve.retrieval.schema import SearchResult
 from lensieve.tools.enums import Tool
 from lensieve.tools.errors import ToolError
-from lensieve.tools.query_metadata_sql import QueryResult, query_metadata_sql_impl
+from lensieve.tools.query_metadata import QueryResult, query_metadata_impl
 from lensieve.tools.search_photos import search_photos_impl
 
 logger = logging.getLogger(__name__)
@@ -146,8 +146,8 @@ class PhotoAgent:
                     data_store=self.data_store,
                     max_results=self.max_image_results,
                 )
-            case Tool.QUERY_METADATA_SQL:
-                result = query_metadata_sql_impl(
+            case Tool.QUERY_METADATA:
+                result = query_metadata_impl(
                     args=args, data_store=self.data_store, max_results=self.max_metadata_results
                 )
             case _:

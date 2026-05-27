@@ -4,8 +4,8 @@ from lensieve.names import ImageViewField as IVF
 from lensieve.names import TableName as TN
 from lensieve.tools.enums import Tool
 
-QUERY_METADATA_SQL_TOOL_DESCRIPTION = f"""
-Tool: {Tool.QUERY_METADATA_SQL.value}
+QUERY_METADATA_TOOL_DESCRIPTION = f"""
+Tool: {Tool.QUERY_METADATA.value}
 
 Purpose:
 Answer factual and statistical questions about the local image collection metadata.
