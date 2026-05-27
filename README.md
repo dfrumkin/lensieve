@@ -2,12 +2,16 @@
 
 ![Demo](assets/demo.gif)
 
-Lensieve is a local, privacy-first tool for semantic search over personal photo collections.  
+Lensieve is a local, privacy-first tool for semantic search and metadata querying over personal photo collections.  
 It runs entirely offline and does not require external services.
 
-The project is currently at an MVP stage. It supports free-form text queries with optional time references, for example:
+Lensieve supports free-form text queries with optional time references, for example:
 
 `Show me photos of nature from last summer`
+
+It also supports metadata queries, for example:
+
+`How many portrait photos did I take in 2024?`
 
 Results can be grouped by visual similarity in the UI.
 
@@ -15,7 +19,6 @@ The full pipeline (ingestion and search) can run on CPU-only machines, though pe
 
 ## Planned Features
 
-- Querying image metadata (e.g. date, camera)
 - Search by image
 - Face-based search
 - Support for video files and animated images (e.g. GIFs)
