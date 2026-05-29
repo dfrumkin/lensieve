@@ -6,7 +6,7 @@ Rules:
 - Do not answer the user.
 - Do not explain.
 - Do not write prose.
-- Output only:
+- output ONLY this exact structure:
 
 <tool_call>
 {"name": tool_name, "arguments": {...}}

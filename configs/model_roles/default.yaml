@@ -11,15 +11,15 @@ image_retrieval_repair:
   max_tokens: 256
 
 metadata_query:
-  model: qwen_14b
+  model: qwen_14b  # TODO: Consider qwen3_8b thinking or not
   max_tokens: 512
 
 metadata_query_repair:
-  model: qwen_14b
+  model: qwen_14b  # TODO: Consider qwen3_8b thinking or not
   max_tokens: 512
 
 metadata_interpreter:
-  model: qwen_7b
+  model: qwen2_5_3b
   max_tokens: 512
 
 clip_like:
