@@ -26,7 +26,7 @@ https://dmitryfrumkin.substack.com/p/lensieve
 
 Install `uv`: https://github.com/astral-sh/uv
 
-### 2. Create the environment:
+### 2. Create the environment
 
 ```bash
 uv sync
@@ -44,16 +44,16 @@ This is mainly needed for RAW image support (`rawpy`) and HEIF/HEIC images.
 
 #### Hardware acceleration
 
-By default, `uv sync` installs the standard `llama-cpp-python` package, which runs on CPU.
+By default, `uv sync` installs `llama-cpp-python` with CPU-only support.
 
 To rebuild `llama-cpp-python` with hardware acceleration, run one of the following commands after `uv sync`.
 
-**macOS (Apple Silicon):**
+##### macOS (Apple Silicon)
 ```bash
 CMAKE_ARGS="-DLLAMA_METAL=on" uv sync --reinstall-package llama-cpp-python
 ```
 
-**Linux (NVIDIA CUDA):**
+##### Linux (NVIDIA CUDA)
 ```bash
 CMAKE_ARGS="-DGGML_CUDA=on" uv sync --reinstall-package llama-cpp-python
 ```
@@ -74,7 +74,7 @@ This includes tools for:
 
 ### 3. Configure Lensieve
 
-Edit `configs/config.yaml` and set `root` to your image directory.
+Edit `configs/config.yaml` and set `root` to the directory containing your images.
 
 - Nested directories are supported  
 - Duplicate filenames across directories are allowed  
