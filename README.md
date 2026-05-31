@@ -13,17 +13,12 @@ It also supports metadata queries, for example:
 
 `How many portrait photos did I take in 2024?`
 
-Results can be grouped by visual similarity in the UI.
+Image search results can be grouped by visual similarity in the UI.
 
-The full pipeline (ingestion and search) can run on CPU-only machines, though performance will be slower compared to hardware-accelerated setups.
+The full pipeline (ingestion and search) can run on CPU-only machines, though performance will be slower than on hardware-accelerated systems.
 
-## Planned Features
-
-- Search by image
-- Face-based search
-- Support for video files and animated images (e.g. GIFs)
-- Location-based search
-- Grouping photos by trips or events
+For technical details, see the accompanying article:
+https://dmitryfrumkin.substack.com/p/lensieve
 
 ## Setup
 
